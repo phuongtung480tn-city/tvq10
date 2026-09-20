@@ -19,6 +19,7 @@ const ATTRIBUTION_KEY = "lp_utm_v2";
 const COUNTERS_KEY = "lp_visit_counters_v2";
 const SUBMISSION_KEY = "lp_submission_counters_v2";
 const SESSION_MARKER_KEY = "lp_session_marker_v2";
+const SESSION_PHONE_KEY = "lp_session_phone_state_v2";
 const VISITOR_SESSION_TABLE = "visitor_sessions";
 const NETWORK_TIMEOUT_MS = 3500;
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
@@ -460,6 +461,85 @@ function getVisitorId() {
   const next = makeId("visitor");
   runtimeStorage.set(VISITOR_ID_KEY, next);
   return next;
+}
+
+function normalizeSessionPhone(raw: string | undefined | null): string {
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (!digits) return "";
+  return digits.length >= 9 ? digits : digits;
+}
+
+function readSessionPhoneState() {
+  if (!isBrowser()) return { phoneHint: "", submittedPhone: "", formSubmitted: false, submittedAt: "" };
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_PHONE_KEY);
+    if (!raw) return { phoneHint: "", submittedPhone: "", formSubmitted: false, submittedAt: "" };
+    const parsed = JSON.parse(raw) as Partial<{
+      phoneHint: string;
+      submittedPhone: string;
+      formSubmitted: boolean;
+      submittedAt: string;
+    }>;
+    return {
+      phoneHint: normalizeSessionPhone(parsed.phoneHint),
+      submittedPhone: normalizeSessionPhone(parsed.submittedPhone),
+      formSubmitted: Boolean(parsed.formSubmitted),
+      submittedAt: typeof parsed.submittedAt === "string" ? parsed.submittedAt : "",
+    };
+  } catch {
+    return { phoneHint: "", submittedPhone: "", formSubmitted: false, submittedAt: "" };
+  }
+}
+
+function writeSessionPhoneState(state: {
+  phoneHint: string;
+  submittedPhone: string;
+  formSubmitted: boolean;
+  submittedAt: string;
+}) {
+  if (!isBrowser()) return;
+  const next = {
+    phoneHint: normalizeSessionPhone(state.phoneHint),
+    submittedPhone: normalizeSessionPhone(state.submittedPhone),
+    formSubmitted: Boolean(state.formSubmitted),
+    submittedAt: state.submittedAt || "",
+  };
+  try {
+    window.sessionStorage.setItem(SESSION_PHONE_KEY, JSON.stringify(next));
+  } catch {
+    runtimeStorage.set(SESSION_PHONE_KEY, next);
+  }
+}
+
+export function setSessionPhoneHint(value: string) {
+  const normalized = normalizeSessionPhone(value);
+  if (!normalized) return "";
+  const state = readSessionPhoneState();
+  const next = {
+    ...state,
+    phoneHint: normalized,
+    formSubmitted: state.formSubmitted && state.submittedPhone === normalized,
+  };
+  writeSessionPhoneState(next);
+  return normalized;
+}
+
+export function markSessionFormSubmitted(phone?: string) {
+  const state = readSessionPhoneState();
+  const normalized = normalizeSessionPhone(phone || state.phoneHint);
+  const next = {
+    phoneHint: normalized || state.phoneHint,
+    submittedPhone: normalized || state.submittedPhone,
+    formSubmitted: true,
+    submittedAt: new Date().toISOString(),
+  };
+  writeSessionPhoneState(next);
+  return next;
+}
+
+export function getSessionPhoneState() {
+  return readSessionPhoneState();
 }
 
 /**

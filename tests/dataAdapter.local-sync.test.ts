@@ -146,6 +146,25 @@ test("syncLeadsToSupabase reports local saved and cloud synced statuses", async 
   assert.equal(result.skipped, 0);
 });
 
+test("session phone tracking remembers the mobile number and whether the form was submitted", async () => {
+  const {
+    setSessionPhoneHint,
+    markSessionFormSubmitted,
+    getSessionPhoneState,
+  } = await import("../src/lib/visitor-tracking.ts");
+
+  localStore.clear();
+  setSessionPhoneHint("0912345678");
+  assert.equal(getSessionPhoneState().phoneHint, "0912345678");
+  assert.equal(getSessionPhoneState().formSubmitted, false);
+
+  markSessionFormSubmitted("0912345678");
+  const state = getSessionPhoneState();
+  assert.equal(state.phoneHint, "0912345678");
+  assert.equal(state.submittedPhone, "0912345678");
+  assert.equal(state.formSubmitted, true);
+});
+
 test("decrementCountdownWithServiceRole creates a countdown row when config is missing", async () => {
   const calls: Array<{ method: string; url: string; body?: string }> = [];
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {

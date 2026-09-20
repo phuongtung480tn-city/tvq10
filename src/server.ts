@@ -22,6 +22,10 @@ function isBackupRequest(request: Request) {
   return new URL(request.url).pathname === "/api/backup";
 }
 
+function isAnalyticsReportRequest(request: Request) {
+  return new URL(request.url).pathname === "/api/analytics-report";
+}
+
 function isAuthorizedBackupRequest(request: Request) {
   const token = process.env["BACKUP_CRON_TOKEN"];
   return (
@@ -30,6 +34,57 @@ function isAuthorizedBackupRequest(request: Request) {
       new URL(request.url).searchParams.get("token") === token) ||
     (Boolean(token) && request.headers.get("x-backup-token") === token)
   );
+}
+
+async function handleAnalyticsReportRequest(request: Request): Promise<Response> {
+  const token = process.env["BACKUP_CRON_TOKEN"] || process.env["REPORT_CRON_TOKEN"];
+  const url = new URL(request.url);
+  const isTest = url.searchParams.get("test") === "1";
+  const authorized =
+    request.headers.get("x-vercel-cron") === "1" ||
+    (Boolean(token) && url.searchParams.get("token") === token) ||
+    (Boolean(token) && request.headers.get("x-backup-token") === token);
+  if (!authorized) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const recipient = process.env["REPORT_RECIPIENT_EMAIL"] || process.env["BACKUP_FROM_EMAIL"];
+  const resendKey = process.env["RESEND_API_KEY"];
+  const fromEmail = process.env["BACKUP_FROM_EMAIL"] || process.env["REPORT_FROM_EMAIL"];
+  if (!recipient || !resendKey || !fromEmail) {
+    return new Response("Analytics report email is not configured", { status: 503 });
+  }
+
+  const reportDate = new Date().toISOString().slice(0, 10);
+  const summary = {
+    date: reportDate,
+    visits: 0,
+    leads: 0,
+    conversionRate: "0.0%",
+    note: "This is a generated analytics report template. Connect your data source for live values.",
+  };
+
+  const body = `Báo cáo analytics hàng ngày\n\nNgày: ${summary.date}\nLượt truy cập: ${summary.visits}\nLượt đăng ký: ${summary.leads}\nTỷ lệ CR: ${summary.conversionRate}\n\n${summary.note}`;
+
+  const emailResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${resendKey}`,
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [recipient],
+      subject: isTest ? "[Analytics Report Test] " + reportDate : "[Analytics Report] " + reportDate,
+      text: body,
+    }),
+  });
+
+  if (!emailResponse.ok) {
+    console.error("Analytics report email failed", await emailResponse.text());
+    return new Response("Analytics report email failed", { status: 502 });
+  }
+  return new Response("Analytics report sent");
 }
 
 async function handleBackupRequest(request: Request): Promise<Response> {
@@ -174,6 +229,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       if (isBackupRequest(request)) return await handleBackupRequest(request);
+      if (isAnalyticsReportRequest(request)) return await handleAnalyticsReportRequest(request);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       const normalized = await normalizeCatastrophicSsrResponse(response);

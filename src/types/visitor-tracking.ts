@@ -105,6 +105,9 @@ export interface BehaviorData {
   is_copy_paste: boolean;
   is_headless_browser: boolean;
   submission_count_same_visitor: number;
+  session_phone_hint?: string;
+  submitted_phone?: string;
+  session_form_submitted?: boolean;
   device_model_name: string;
   device_manufacturer: string;
   device_family: string;
@@ -156,6 +159,9 @@ export interface VisitorBehaviorPayload {
   network: NetworkInfo;
   attribution: TrafficAttribution;
   metrics: VisitorMetrics;
+  sessionPhoneHint?: string;
+  submittedPhone?: string;
+  sessionFormSubmitted?: boolean;
   form: {
     city: string;
     major: string;

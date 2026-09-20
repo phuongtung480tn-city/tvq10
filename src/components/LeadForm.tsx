@@ -9,6 +9,7 @@ import {
   markIndustrySwitch,
   syncBehaviorSession,
 } from "@/lib/behavior";
+import { markSessionFormSubmitted, setSessionPhoneHint } from "@/lib/visitor-tracking";
 import { getVariant, utmSource } from "@/lib/ab";
 import { getUtmPayload } from "@/lib/utm-hub";
 import { UtmHiddenFields } from "@/components/UtmHiddenFields";
@@ -160,11 +161,14 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
     setForm((f) => ({ ...f, major: e.target.value }));
   };
 
-  const setPhone = (e: React.ChangeEvent<HTMLInputElement>) =>
+  const setPhone = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setSessionPhoneHint(next);
     setForm((f) => ({
       ...f,
-      phone: e.target.value.replace(/\D/g, "").slice(0, 10),
+      phone: next,
     }));
+  };
 
   // Khách bắt đầu tương tác với ô input đầu tiên -> form_start
   const onFirstInteract = () => {
@@ -238,6 +242,8 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
     }
 
     setError("");
+    setSessionPhoneHint(phone);
+    markSessionFormSubmitted(phone);
     setStatus("sending");
 
     let leadSaved = false;

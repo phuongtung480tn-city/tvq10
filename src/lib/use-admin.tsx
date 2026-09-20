@@ -20,6 +20,7 @@ export type AdminModalKey =
   | "fomo"
   | "exitintent"
   | "analytics"
+  | "visitorhistory"
   | "pages"
   | "abtest"
   | "email"

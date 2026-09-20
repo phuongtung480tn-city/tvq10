@@ -311,6 +311,14 @@ export interface LandingConfig {
 
 export interface SiteConfig {
   admin: AdminConfig;
+  analyticsReport: {
+    enabled: boolean;
+    recipientEmail: string;
+    schedule: "off" | "daily" | "weekly";
+    subject: string;
+    includeSourceBreakdown: boolean;
+    includeLeadSummary: boolean;
+  };
   pages: SitePage[];
   tracking: TrackingConfig;
   seo: SeoConfig;
@@ -376,6 +384,14 @@ export const DEFAULT_CONFIG: SiteConfig = {
     backupEmail: "",
     cronSchedule: "off",
     backupCronToken: "",
+  },
+  analyticsReport: {
+    enabled: true,
+    recipientEmail: "",
+    schedule: "off",
+    subject: "[Analytics Report] {date}",
+    includeSourceBreakdown: true,
+    includeLeadSummary: true,
   },
   pages: [
     {

@@ -540,6 +540,196 @@ export interface LeadRecord {
   storage?: StorageMode | undefined;
 }
 
+export interface VisitorSessionRecord {
+  id: string;
+  visitorId: string;
+  sessionId: string;
+  source: string;
+  medium: string;
+  campaign: string;
+  content: string;
+  deviceKind: string;
+  deviceModel: string;
+  os: string;
+  browser: string;
+  variant: string;
+  network: string;
+  country: string;
+  city: string;
+  createdAt: string;
+  visitedDay: string;
+  visitedMonth: string;
+  currentSession: number;
+  todayVisits: number;
+  monthVisits: number;
+}
+
+export const VISITOR_SESSION_HISTORY_KEY = "funnel_visitor_sessions_v1";
+
+function loadLocalVisitorSessionHistory(): VisitorSessionRecord[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = window.localStorage.getItem(VISITOR_SESSION_HISTORY_KEY);
+    const parsed = raw ? (JSON.parse(raw) as VisitorSessionRecord[]) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalVisitorSessionHistory(next: VisitorSessionRecord[]): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(
+      VISITOR_SESSION_HISTORY_KEY,
+      JSON.stringify(next.slice(0, 500)),
+    );
+  } catch {
+    // ignore quota errors; this is a best-effort browser history
+  }
+}
+
+export function pushVisitorSessionHistory(record: VisitorSessionRecord): void {
+  if (!isBrowser()) return;
+  const history = loadLocalVisitorSessionHistory();
+  const next = [record, ...history.filter((item) => item.id !== record.id)].slice(
+    0,
+    500,
+  );
+  saveLocalVisitorSessionHistory(next);
+}
+
+export async function loadVisitorSessionHistory(
+  config?: SiteConfig,
+): Promise<VisitorSessionRecord[]> {
+  if (config?.admin.storageMode === "database" && config.admin.supabaseUrl) {
+    try {
+      const response = await fetch(
+        `${config.admin.supabaseUrl.replace(/\/$/, "")}/rest/v1/visitor_sessions?select=*&order=created_at.desc&limit=500`,
+        {
+          headers: {
+            apikey: config.admin.supabaseAnonKey,
+            Authorization: `Bearer ${bearer(config.admin.supabaseAnonKey)}`,
+          },
+        },
+      );
+      if (!response.ok) return loadLocalVisitorSessionHistory();
+      const rows = (await response.json()) as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        id: String(row["id"] || ""),
+        visitorId: String(row["visitor_id"] || ""),
+        sessionId: String(row["id"] || ""),
+        source: String(row["source"] || "direct"),
+        medium: String(row["medium"] || ""),
+        campaign: String(row["campaign"] || ""),
+        content: String(row["content"] || ""),
+        deviceKind: String(row["device_kind"] || ""),
+        deviceModel: String(row["device_model"] || ""),
+        os: String(row["os"] || ""),
+        browser: String(row["browser"] || ""),
+        variant: String(row["variant"] || ""),
+        network: String(row["network"] || ""),
+        country: String(row["country"] || ""),
+        city: String(row["city"] || ""),
+        createdAt: String(row["created_at"] || new Date().toISOString()),
+        visitedDay: String(row["visited_day"] || ""),
+        visitedMonth: String(row["visited_month"] || ""),
+        currentSession: Number(row["current_session"] || 0),
+        todayVisits: Number(row["today_visits"] || 0),
+        monthVisits: Number(row["month_visits"] || 0),
+      }));
+    } catch {
+      return loadLocalVisitorSessionHistory();
+    }
+  }
+  return loadLocalVisitorSessionHistory();
+}
+
+export async function deleteVisitorSessionRecord(
+  config: SiteConfig,
+  id: string,
+): Promise<boolean> {
+  if (!isBrowser()) return false;
+  if (config.admin.storageMode === "database") {
+    try {
+      const response = await fetch(
+        `${config.admin.supabaseUrl.replace(/\/$/, "")}/rest/v1/visitor_sessions?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: {
+            apikey: config.admin.supabaseAnonKey,
+            Authorization: `Bearer ${bearer(config.admin.supabaseAnonKey)}`,
+          },
+        },
+      );
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+  const history = loadLocalVisitorSessionHistory().filter((item) => item.id !== id);
+  saveLocalVisitorSessionHistory(history);
+  return true;
+}
+
+export async function deleteVisitorSessionHistory(
+  config: SiteConfig,
+  ids: string[],
+): Promise<boolean> {
+  if (!ids.length) return true;
+  if (config.admin.storageMode === "database") {
+    const results = await Promise.all(
+      ids.map((id) => deleteVisitorSessionRecord(config, id)),
+    );
+    return results.some(Boolean);
+  }
+  const history = loadLocalVisitorSessionHistory().filter(
+    (item) => !ids.includes(item.id),
+  );
+  saveLocalVisitorSessionHistory(history);
+  return true;
+}
+
+export async function clearVisitorSessionHistory(
+  config: SiteConfig,
+): Promise<boolean> {
+  if (!isBrowser()) return false;
+  if (config.admin.storageMode === "database") {
+    try {
+      const response = await fetch(
+        `${config.admin.supabaseUrl.replace(/\/$/, "")}/rest/v1/visitor_sessions?select=id`,
+        {
+          headers: {
+            apikey: config.admin.supabaseAnonKey,
+            Authorization: `Bearer ${bearer(config.admin.supabaseAnonKey)}`,
+          },
+        },
+      );
+      if (!response.ok) return false;
+      const rows = (await response.json()) as Array<{ id?: string }>;
+      for (const row of rows) {
+        const id = row.id;
+        if (!id) continue;
+        await fetch(
+          `${config.admin.supabaseUrl.replace(/\/$/, "")}/rest/v1/visitor_sessions?id=eq.${encodeURIComponent(id)}`,
+          {
+            method: "DELETE",
+            headers: {
+              apikey: config.admin.supabaseAnonKey,
+              Authorization: `Bearer ${bearer(config.admin.supabaseAnonKey)}`,
+            },
+          },
+        );
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  window.localStorage.removeItem(VISITOR_SESSION_HISTORY_KEY);
+  return true;
+}
+
 export function loadLeads(): LeadRecord[] {
   if (!isBrowser()) return [];
   const raw = window.localStorage.getItem(LEADS_KEY);
@@ -1046,6 +1236,104 @@ export function exportLeadsCsv(leads: LeadRecord[]): void {
   a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function buildAnalyticsReportSummary(
+  leads: LeadRecord[],
+  analytics: AnalyticsState | null,
+  range: { start: string; end: string },
+) {
+  const normalizedStart = range.start || new Date().toISOString().slice(0, 10);
+  const normalizedEnd = range.end || normalizedStart;
+  const filtered = leads.filter((lead) => {
+    const at = (lead.at || "").slice(0, 10);
+    return at >= normalizedStart && at <= normalizedEnd;
+  });
+  const totalLeads = filtered.length;
+  const totalVisits = analytics?.visits ?? totalLeads;
+  const conversionRate = totalVisits > 0 ? ((totalLeads / totalVisits) * 100).toFixed(1) : "0.0";
+  return {
+    range: { start: normalizedStart, end: normalizedEnd },
+    totalVisits,
+    totalLeads,
+    conversionRate: `${conversionRate}%`,
+    sourceBreakdown: Object.entries(analytics?.bySourceStats || {}).map(([source, stats]) => ({
+      source,
+      visits: stats.visits,
+      leads: stats.leads,
+      conversionRate: stats.visits ? `${((stats.leads / stats.visits) * 100).toFixed(1)}%` : "0.0%",
+    })),
+    leads,
+  };
+}
+
+export function exportAnalyticsReportCsv(
+  leads: LeadRecord[],
+  analytics: AnalyticsState | null,
+  range: { start: string; end: string },
+): void {
+  if (!isBrowser()) return;
+  const summary = buildAnalyticsReportSummary(leads, analytics, range);
+  const rows = [
+    ["start", "end", "totalVisits", "totalLeads", "conversionRate"],
+    [summary.range.start, summary.range.end, String(summary.totalVisits), String(summary.totalLeads), summary.conversionRate],
+    [],
+    ["source", "visits", "leads", "conversionRate"],
+    ...summary.sourceBreakdown.map((item) => [item.source, String(item.visits), String(item.leads), item.conversionRate]),
+  ];
+  const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `analytics-report-${range.start}-to-${range.end}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function exportAnalyticsReportJson(
+  leads: LeadRecord[],
+  analytics: AnalyticsState | null,
+  range: { start: string; end: string },
+): void {
+  if (!isBrowser()) return;
+  const summary = buildAnalyticsReportSummary(leads, analytics, range);
+  const blob = new Blob([JSON.stringify(summary, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `analytics-report-${range.start}-to-${range.end}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function exportAnalyticsReportPdf(
+  leads: LeadRecord[],
+  analytics: AnalyticsState | null,
+  range: { start: string; end: string },
+): void {
+  if (!isBrowser()) return;
+  const summary = buildAnalyticsReportSummary(leads, analytics, range);
+  const printWindow = window.open("", "_blank", "width=900,height=700");
+  if (!printWindow) return;
+  const html = `
+    <html>
+      <head><title>Analytics Report</title></head>
+      <body style="font-family:Arial,sans-serif;padding:32px;color:#0f172a;">
+        <h2>Analytics Report</h2>
+        <p><strong>Range:</strong> ${summary.range.start} → ${summary.range.end}</p>
+        <p><strong>Total visits:</strong> ${summary.totalVisits}</p>
+        <p><strong>Total leads:</strong> ${summary.totalLeads}</p>
+        <p><strong>Conversion rate:</strong> ${summary.conversionRate}</p>
+        <h3>Traffic by source</h3>
+        <ul>${summary.sourceBreakdown.map((item) => `<li>${item.source}: ${item.visits} visits, ${item.leads} leads, ${item.conversionRate}</li>`).join("") || "<li>Chưa có dữ liệu</li>"}</ul>
+      </body>
+    </html>
+  `;
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 /* ------------------------------- ANALYTICS -------------------------------- */

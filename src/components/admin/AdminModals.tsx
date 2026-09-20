@@ -35,6 +35,11 @@ import {
   type SupabaseConnectionStatus,
   type AnalyticsState,
   type LeadRecord,
+  type VisitorSessionRecord,
+  loadVisitorSessionHistory,
+  deleteVisitorSessionRecord,
+  deleteVisitorSessionHistory,
+  clearVisitorSessionHistory,
 } from "@/services/dataAdapter";
 import { fireTestEvent, type TestEventLog } from "@/lib/tracking";
 import {
@@ -75,20 +80,68 @@ function ExitIntentModal({ onClose }: ModalProps) {
   const status = getStorageStatus(config);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  function normalizeImageUpload(file: File): Promise<string> {
+    const quality = Math.max(0.5, Math.min(0.92, content.imageOptimization.quality || 0.82));
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const source = typeof reader.result === "string" ? reader.result : "";
+        if (!source) {
+          reject(new Error("invalid image"));
+          return;
+        }
+        const image = new Image();
+        image.onload = () => {
+          const maxDimension = 1600;
+          const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+          const width = Math.max(1, Math.round(image.naturalWidth * scale));
+          const height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d");
+          if (!context) {
+            resolve(source);
+            return;
+          }
+          context.drawImage(image, 0, 0, width, height);
+          const targetType = content.imageOptimization.convertUploadsToWebp ? "image/webp" : file.type.includes("png") ? "image/png" : file.type.includes("jpeg") ? "image/jpeg" : "image/webp";
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(source);
+                return;
+              }
+              const blobReader = new FileReader();
+              blobReader.onload = () => {
+                if (typeof blobReader.result === "string") resolve(blobReader.result);
+                else reject(new Error("invalid optimized image"));
+              };
+              blobReader.onerror = () => reject(new Error("read optimized image failed"));
+              blobReader.readAsDataURL(blob);
+            },
+            targetType,
+            quality,
+          );
+        };
+        image.onerror = () => reject(new Error("image decode failed"));
+        image.src = source;
+      };
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
   function uploadExitImage(file: File) {
-    if (
-      !/^image\/(png|jpeg|webp)$/.test(file.type) ||
-      file.size > 2 * 1024 * 1024
-    ) {
-      window.alert("Ảnh popup cần là PNG, JPG hoặc WebP và tối đa 2MB.");
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      window.alert("Ảnh popup cần là PNG, JPG hoặc WebP.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      update((d) => (d.exitIntent.imageUrl = reader.result as string));
-    };
-    reader.readAsDataURL(file);
+    normalizeImageUpload(file)
+      .then((image) => {
+        update((d) => (d.exitIntent.imageUrl = image));
+      })
+      .catch(() => window.alert("Không thể xử lý ảnh popup."));
   }
 
   return (
@@ -3814,6 +3867,187 @@ function AnalyticsModal({ onClose }: ModalProps) {
   );
 }
 
+/* --------------------------- VISITOR SESSION HISTORY ------------------------- */
+function VisitorSessionHistoryModal({ onClose }: ModalProps) {
+  const { config } = useSiteConfig();
+  const [sessions, setSessions] = useState<VisitorSessionRecord[]>([]);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const result = await loadVisitorSessionHistory(config);
+    setSessions(result);
+    setSelectedIds((current) =>
+      current.filter((id) => result.some((item) => item.id === id)),
+    );
+    setLoading(false);
+  }, [config]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const normalizedFilter = filter.trim().toLowerCase();
+  const filteredSessions = normalizedFilter
+    ? sessions.filter((session) =>
+        [
+          session.source,
+          session.medium,
+          session.campaign,
+          session.content,
+          session.deviceKind,
+          session.deviceModel,
+          session.os,
+          session.browser,
+          session.variant,
+          session.country,
+          session.city,
+          session.network,
+          session.visitorId,
+          session.sessionId,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedFilter),
+      )
+    : sessions;
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
+    );
+  };
+
+  const handleDeleteOne = async (id: string) => {
+    const ok = await deleteVisitorSessionRecord(config, id);
+    setMessage(ok ? "Đã xoá phiên được chọn." : "Không xoá được phiên này.");
+    if (ok) await refresh();
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) {
+      setMessage("Chưa chọn phiên nào để xoá.");
+      return;
+    }
+    const ok = await deleteVisitorSessionHistory(config, selectedIds);
+    setMessage(
+      ok ? `Đã xoá ${selectedIds.length} phiên đang chọn.` : "Không xoá được các phiên đã chọn.",
+    );
+    if (ok) {
+      setSelectedIds([]);
+      await refresh();
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm("Xoá toàn bộ lịch sử phiên truy cập?")) return;
+    const ok = await clearVisitorSessionHistory(config);
+    setMessage(ok ? "Đã xoá toàn bộ lịch sử phiên." : "Không xoá được lịch sử phiên.");
+    if (ok) {
+      setSelectedIds([]);
+      await refresh();
+    }
+  };
+
+  return (
+    <AdminModal
+      title="Lịch sử Visitor Session"
+      subtitle="Xem, lọc, xoá từng phiên và xoá theo bộ lọc"
+      onClose={onClose}
+    >
+      <div className="mb-3 flex flex-col gap-2">
+        <TextInput
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+          placeholder="Lọc theo nguồn, thiết bị, browser, city, visitor…"
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleDeleteSelected}
+            className="rounded-lg border border-red-300 px-3 py-2 text-[11px] font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={selectedIds.length === 0}
+          >
+            Xoá các phiên đã chọn
+          </button>
+          <button
+            type="button"
+            onClick={handleClearAll}
+            className="rounded-lg border border-amber-300 px-3 py-2 text-[11px] font-bold text-amber-700"
+          >
+            Xoá tất cả
+          </button>
+        </div>
+        {message && (
+          <p className="text-[11px] font-semibold text-sky-700">{message}</p>
+        )}
+      </div>
+
+      <div className="mb-2 flex items-center justify-between text-[11px] text-neutral-500">
+        <span>{filteredSessions.length} phiên</span>
+        <span>{selectedIds.length} chọn</span>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-neutral-500">Đang tải lịch sử phiên…</p>
+      ) : filteredSessions.length === 0 ? (
+        <p className="text-xs text-neutral-400">Chưa có dữ liệu session nào.</p>
+      ) : (
+        <div className="max-h-[70vh] space-y-2 overflow-auto">
+          {filteredSessions.map((session) => (
+            <div
+              key={session.id}
+              className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-white/10 dark:bg-white/5"
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(session.id)}
+                    onChange={() => toggleSelection(session.id)}
+                  />
+                  <span>{session.createdAt}</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteOne(session.id)}
+                  className="text-[11px] font-bold text-red-600"
+                >
+                  Xoá
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-600">
+                <div><strong>Session:</strong> {session.sessionId}</div>
+                <div><strong>Visitor:</strong> {session.visitorId}</div>
+                <div><strong>Source:</strong> {session.source || "direct"}</div>
+                <div><strong>Medium:</strong> {session.medium || "-"}</div>
+                <div><strong>Campaign:</strong> {session.campaign || "-"}</div>
+                <div><strong>Content:</strong> {session.content || "-"}</div>
+                <div><strong>Device:</strong> {session.deviceKind || "-"}</div>
+                <div><strong>Model:</strong> {session.deviceModel || "-"}</div>
+                <div><strong>OS:</strong> {session.os || "-"}</div>
+                <div><strong>Browser:</strong> {session.browser || "-"}</div>
+                <div><strong>Variant:</strong> {session.variant || "A"}</div>
+                <div><strong>Network:</strong> {session.network || "-"}</div>
+                <div><strong>Vị trí:</strong> {session.city || "-"}</div>
+                <div><strong>Quốc gia:</strong> {session.country || "-"}</div>
+                <div><strong>Session #:</strong> {session.currentSession}</div>
+                <div><strong>Visits/day:</strong> {session.todayVisits}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </AdminModal>
+  );
+}
+
 /* ------------------------------- LEADS ------------------------------------ */
 function LeadsModal({ onClose }: ModalProps) {
   const { config } = useSiteConfig();
@@ -5240,11 +5474,7 @@ function LandingEditorModal({ onClose }: ModalProps) {
       setLogoError("Logo cần là PNG, JPG, WebP hoặc SVG.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setLogoError("Logo không được vượt quá 2MB.");
-      return;
-    }
-    readImageDataUrl(file)
+    normalizeImageUpload(file)
       .then((image) => {
         update((draft) => {
           draft.landing.logoUrl = image;
@@ -5259,11 +5489,7 @@ function LandingEditorModal({ onClose }: ModalProps) {
       setHeroMediaError("Ảnh hero cần là PNG, JPG hoặc WebP.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setHeroMediaError("Ảnh hero không được vượt quá 2MB.");
-      return;
-    }
-    readImageDataUrl(file)
+    normalizeImageUpload(file)
       .then((image) => {
         update((draft) => {
           draft.landing.heroMediaMode = "image";
@@ -5275,16 +5501,12 @@ function LandingEditorModal({ onClose }: ModalProps) {
 
   function uploadHeroSlider(files: FileList) {
     setHeroMediaError("");
-    const selected = Array.from(files).filter(
-      (file) =>
-        /^image\/(png|jpeg|webp)$/.test(file.type) &&
-        file.size <= 2 * 1024 * 1024,
-    );
+    const selected = Array.from(files).filter((file) => /^image\/(png|jpeg|webp)$/.test(file.type));
     if (selected.length === 0) {
-      setHeroMediaError("Vui lòng chọn PNG/JPG/WebP tối đa 2MB.");
+      setHeroMediaError("Vui lòng chọn PNG/JPG/WebP.");
       return;
     }
-    Promise.all(selected.map((file) => readImageDataUrl(file)))
+    Promise.all(selected.map((file) => normalizeImageUpload(file)))
       .then((images) => {
         update((draft) => {
           draft.landing.heroMediaMode = "slider";
@@ -5298,16 +5520,12 @@ function LandingEditorModal({ onClose }: ModalProps) {
   }
 
   function uploadGallery(files: FileList) {
-    const selected = Array.from(files).filter(
-      (file) =>
-        /^image\/(png|jpeg|webp)$/.test(file.type) &&
-        file.size <= 2 * 1024 * 1024,
-    );
+    const selected = Array.from(files).filter((file) => /^image\/(png|jpeg|webp)$/.test(file.type));
     if (selected.length === 0) {
-      window.alert("Vui lòng chọn PNG/JPG/WebP tối đa 2MB mỗi ảnh.");
+      window.alert("Vui lòng chọn PNG/JPG/WebP để tải lên.");
       return;
     }
-    Promise.all(selected.map((file) => readImageDataUrl(file))).then(
+    Promise.all(selected.map((file) => normalizeImageUpload(file))).then(
       (images) => {
         update((draft) => {
           draft.landing.galleryImageUrls = [
@@ -5323,14 +5541,11 @@ function LandingEditorModal({ onClose }: ModalProps) {
     );
   }
   function replaceGalleryImage(index: number, file: File) {
-    if (
-      !/^image\/(png|jpeg|webp)$/.test(file.type) ||
-      file.size > 2 * 1024 * 1024
-    ) {
-      window.alert("Ảnh gallery cần là PNG, JPG hoặc WebP và tối đa 2MB.");
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      window.alert("Ảnh gallery cần là PNG, JPG hoặc WebP.");
       return;
     }
-    readImageDataUrl(file)
+    normalizeImageUpload(file)
       .then((image) =>
         update((draft) => {
           draft.landing.galleryImageUrls[index] = image;
@@ -5341,13 +5556,9 @@ function LandingEditorModal({ onClose }: ModalProps) {
   const GRADUATION_IMAGE_LIMIT = 25;
   function uploadGraduationImages(files: FileList) {
     setGraduationError("");
-    const selected = Array.from(files).filter(
-      (file) =>
-        /^image\/(png|jpeg|webp)$/.test(file.type) &&
-        file.size <= 2 * 1024 * 1024,
-    );
+    const selected = Array.from(files).filter((file) => /^image\/(png|jpeg|webp)$/.test(file.type));
     if (selected.length === 0) {
-      setGraduationError("Vui lòng chọn PNG/JPG/WebP tối đa 2MB mỗi ảnh.");
+      setGraduationError("Vui lòng chọn PNG/JPG/WebP.");
       return;
     }
     const remaining =
@@ -5359,7 +5570,7 @@ function LandingEditorModal({ onClose }: ModalProps) {
       return;
     }
     Promise.all(
-      selected.slice(0, remaining).map((file) => readImageDataUrl(file)),
+      selected.slice(0, remaining).map((file) => normalizeImageUpload(file)),
     ).then((images) => {
       update((draft) => {
         draft.landing.graduationImageUrls = [
@@ -5376,25 +5587,17 @@ function LandingEditorModal({ onClose }: ModalProps) {
     });
   }
   function replaceGraduationImage(index: number, file: File) {
-    if (
-      !/^image\/(png|jpeg|webp)$/.test(file.type) ||
-      file.size > 2 * 1024 * 1024
-    )
-      return;
-    readImageDataUrl(file).then((url) =>
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return;
+    normalizeImageUpload(file).then((url) =>
       update((draft) => {
         draft.landing.graduationImageUrls[index] = url;
       }),
     );
   }
   function uploadExpertImages(files: FileList) {
-    const selected = Array.from(files).filter(
-      (file) =>
-        /^image\/(png|jpeg|webp)$/.test(file.type) &&
-        file.size <= 2 * 1024 * 1024,
-    );
+    const selected = Array.from(files).filter((file) => /^image\/(png|jpeg|webp)$/.test(file.type));
     if (selected.length === 0) return;
-    Promise.all(selected.map((file) => readImageDataUrl(file))).then(
+    Promise.all(selected.map((file) => normalizeImageUpload(file))).then(
       (images) => {
         update((draft) => {
           draft.landing.expertImageUrls = [
@@ -7794,6 +7997,7 @@ const REGISTRY: Record<AdminModalKey, (p: ModalProps) => ReactElement | null> =
     fomo: FomoModal,
     exitintent: ExitIntentModal,
     analytics: AnalyticsModal,
+    visitorhistory: VisitorSessionHistoryModal,
     pages: PagesModal,
     abtest: AbTestModal,
     email: EmailModal,

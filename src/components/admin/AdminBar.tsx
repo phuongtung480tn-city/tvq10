@@ -88,6 +88,7 @@ const TOOL_GROUPS: ToolGroup[] = [
     icon: BarChart3,
     tools: [
       { key: "analytics", label: "Analytics", icon: BarChart3 },
+      { key: "visitorhistory", label: "Lịch sử Session", icon: Eye },
       { key: "seo", label: "SEO Google", icon: Search },
       { key: "webmaster", label: "Webmaster & Scripts", icon: Globe },
     ],

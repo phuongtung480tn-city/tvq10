@@ -623,6 +623,7 @@ export function buildVisitorBehaviorPayload(
   assessment: LeadAssessment;
   visitorBehaviorPayload: VisitorBehaviorPayload;
 } {
+  const phoneState = getSessionPhoneState();
   const behavior = collectBehavior(input);
   const assessment = scoreLead(behavior, cfg);
   const snapshot = getTrackingSnapshot();
@@ -646,7 +647,13 @@ export function buildVisitorBehaviorPayload(
   );
 
   return {
-    behavior,
+    behavior: {
+      ...behavior,
+      session_phone_hint: phoneState.phoneHint || behavior.session_phone_hint,
+      submitted_phone: phoneState.submittedPhone || behavior.submitted_phone,
+      session_form_submitted:
+        phoneState.formSubmitted || Boolean(behavior.session_form_submitted),
+    },
     assessment,
     visitorBehaviorPayload: {
       submittedAt: new Date().toISOString(),
@@ -657,6 +664,9 @@ export function buildVisitorBehaviorPayload(
         ...snapshot.metrics,
         submissionCountSameVisitor: behavior.submission_count_same_visitor,
       },
+      sessionPhoneHint: phoneState.phoneHint || undefined,
+      submittedPhone: phoneState.submittedPhone || undefined,
+      sessionFormSubmitted: phoneState.formSubmitted || false,
       form: input,
       assessment,
       saleAdvice,
