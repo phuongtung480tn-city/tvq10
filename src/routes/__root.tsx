@@ -7,16 +7,26 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { SiteConfigProvider } from "../lib/use-site-config";
 import { AdminProvider } from "../lib/use-admin";
-import { AdminBar } from "../components/admin/AdminBar";
-import { AdminModals } from "../components/admin/AdminModals";
-import { DeviceFrame } from "../components/admin/DeviceFrame";
 import { RuntimeConfig } from "../components/RuntimeConfig";
 import { DEFAULT_CONFIG } from "../config/site-config";
+
+const AdminBar = lazy(async () => {
+  const module = await import("../components/admin/AdminBar");
+  return { default: module.AdminBar };
+});
+const AdminModals = lazy(async () => {
+  const module = await import("../components/admin/AdminModals");
+  return { default: module.AdminModals };
+});
+const DeviceFrame = lazy(async () => {
+  const module = await import("../components/admin/DeviceFrame");
+  return { default: module.DeviceFrame };
+});
 
 function NotFoundComponent() {
   return (
@@ -134,13 +144,19 @@ function RootComponent() {
           {/* Áp dụng theme/tracking/SEO động từ cấu hình đã lưu */}
           <RuntimeConfig />
           {/* Thanh quản trị 28 nút — chỉ hiện khi Admin đăng nhập */}
-          <AdminBar />
+          <Suspense fallback={null}>
+            <AdminBar />
+          </Suspense>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <DeviceFrame>
-            <Outlet />
-          </DeviceFrame>
+          <Suspense fallback={<Outlet />}>
+            <DeviceFrame>
+              <Outlet />
+            </DeviceFrame>
+          </Suspense>
           {/* Cụm modal cho toàn bộ công cụ Admin */}
-          <AdminModals />
+          <Suspense fallback={null}>
+            <AdminModals />
+          </Suspense>
         </AdminProvider>
       </SiteConfigProvider>
     </QueryClientProvider>
