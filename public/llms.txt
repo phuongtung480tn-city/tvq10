@@ -8,11 +8,11 @@ This site presents a lead capture form where visitors provide their contact info
 
 ## Pages
 
-- [Home](https://tvq4.vercel.app/): Main landing page containing the lead capture form.
+- [Home](https://tvq16.vercel.app/): Main landing page containing the lead capture form.
 
 ## Sitemap
 
-- [Sitemap](https://tvq4.vercel.app/sitemap.xml)
+- [Sitemap](https://tvq16.vercel.app/sitemap.xml)
 
 ## Notes
 
