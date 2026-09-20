@@ -245,6 +245,50 @@ test("selectSalesRecipient follows weighted and round robin formulas", async () 
   assert.equal(roundRobinChoice, "sale1@test.com");
 });
 
+test("analytics report endpoint accepts custom recipients and summary payload", async () => {
+  const calls: Array<{ url: string; body?: string }> = [];
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, body: init?.body ? String(init.body) : undefined });
+    return {
+      ok: true,
+      json: async () => ({ sent: true, recipients: 2 }),
+      text: async () => "ok",
+    } as Response;
+  };
+
+  const { default: server } = await import("../src/server.ts");
+  process.env.BACKUP_FROM_EMAIL = "no-reply@example.com";
+  process.env.RESEND_API_KEY = "test-key";
+  process.env.REPORT_RECIPIENT_EMAIL = "ops@example.com";
+
+  const response = await server.fetch(
+    new Request("https://example.com/api/analytics-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipients: ["a@example.com", "b@example.com"],
+        subject: "Weekly report",
+        note: "Custom note",
+        summary: {
+          totalVisits: 120,
+          totalLeads: 15,
+          conversionRate: "12.5%",
+          sourceBreakdown: [{ source: "google", visits: 60, leads: 10, conversionRate: "16.7%" }],
+        },
+      }),
+    }),
+    {},
+    {},
+  );
+
+  assert.equal(response.status, 200);
+  const body = JSON.parse(await response.text());
+  assert.equal(body.sent, true);
+  assert.ok(calls[0]?.body?.includes('"to":["a@example.com","b@example.com"]'));
+  assert.ok(calls[0]?.body?.includes('"subject":"Weekly report"'));
+});
+
 test("sheets webhook payload is encoded as form payload for Apps Script", async () => {
   const { buildSheetsRequest } = await import("../src/services/webhooks.ts");
   const request = buildSheetsRequest({

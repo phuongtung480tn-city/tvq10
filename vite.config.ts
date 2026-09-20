@@ -15,11 +15,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes("src/routes/")) return "routes";
+          if (id.includes("src/components/admin/")) return "admin-ui";
+          if (id.includes("src/lib/")) return "app-lib";
           if (id.includes("node_modules")) {
-            if (
-              id.includes("@tanstack/react-router") ||
-              id.includes("@tanstack/router")
-            ) {
+            if (id.includes("@tanstack/react-router") || id.includes("@tanstack/router")) {
               return "router-core";
             }
             if (id.includes("@tanstack/react-query")) {
@@ -31,7 +31,7 @@ export default defineConfig({
             if (id.includes("@radix-ui")) {
               return "ui-core";
             }
-            if (id.includes("recharts") || id.includes("d3-")) {
+            if (id.includes("recharts") || id.includes("d3-") || id.includes("@visx")) {
               return "charts";
             }
             if (id.includes("lucide-react")) {
@@ -48,6 +48,12 @@ export default defineConfig({
             }
             if (id.includes("date-fns")) {
               return "date-utils";
+            }
+            if (id.includes("react-hook-form") || id.includes("@hookform")) {
+              return "form-core";
+            }
+            if (id.includes("cmdk") || id.includes("vaul") || id.includes("embla")) {
+              return "ui-extra";
             }
             if (
               id.includes("zod") ||

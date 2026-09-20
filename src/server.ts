@@ -40,32 +40,116 @@ async function handleAnalyticsReportRequest(request: Request): Promise<Response>
   const token = process.env["BACKUP_CRON_TOKEN"] || process.env["REPORT_CRON_TOKEN"];
   const url = new URL(request.url);
   const isTest = url.searchParams.get("test") === "1";
+  const isAdminPost = request.method === "POST";
   const authorized =
     request.headers.get("x-vercel-cron") === "1" ||
     (Boolean(token) && url.searchParams.get("token") === token) ||
-    (Boolean(token) && request.headers.get("x-backup-token") === token);
+    (Boolean(token) && request.headers.get("x-backup-token") === token) ||
+    (!token && isAdminPost);
   if (!authorized) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const recipient = process.env["REPORT_RECIPIENT_EMAIL"] || process.env["BACKUP_FROM_EMAIL"];
   const resendKey = process.env["RESEND_API_KEY"];
   const fromEmail = process.env["BACKUP_FROM_EMAIL"] || process.env["REPORT_FROM_EMAIL"];
-  if (!recipient || !resendKey || !fromEmail) {
+  const defaultRecipient = process.env["REPORT_RECIPIENT_EMAIL"] || process.env["BACKUP_FROM_EMAIL"];
+
+  let payload: Record<string, unknown> = {};
+  if (request.method === "POST") {
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      payload = {};
+    }
+  }
+
+  const recipients = (() => {
+    const raw = Array.isArray(payload["recipients"])
+      ? payload["recipients"]
+      : typeof payload["recipients"] === "string"
+        ? payload["recipients"]
+        : defaultRecipient;
+    if (Array.isArray(raw)) {
+      return raw
+        .map((item) => String(item).trim())
+        .filter((item) => item && /.+@.+\..+/.test(item));
+    }
+    if (typeof raw === "string") {
+      return raw
+        .split(/[\n,;]/)
+        .map((item) => item.trim())
+        .filter((item) => item && /.+@.+\..+/.test(item));
+    }
+    return defaultRecipient && /.+@.+\..+/.test(String(defaultRecipient))
+      ? [String(defaultRecipient)]
+      : [];
+  })();
+
+  if (!recipients.length || !resendKey || !fromEmail) {
     return new Response("Analytics report email is not configured", { status: 503 });
   }
 
   const reportDate = new Date().toISOString().slice(0, 10);
-  const summary = {
-    date: reportDate,
-    visits: 0,
-    leads: 0,
-    conversionRate: "0.0%",
-    note: "This is a generated analytics report template. Connect your data source for live values.",
-  };
+  const summaryPayload = (payload["summary"] as Record<string, unknown> | undefined) ?? {};
+  const summaryRange = (summaryPayload["range"] as Record<string, unknown> | undefined) ?? {};
+  const summaryStart = typeof summaryRange["start"] === "string" ? summaryRange["start"] : reportDate;
+  const summaryEnd = typeof summaryRange["end"] === "string" ? summaryRange["end"] : reportDate;
+  const summaryDate = summaryRange && Object.keys(summaryRange).length > 0 ? `${summaryStart} → ${summaryEnd}` : reportDate;
+  const summaryVisits = Number(summaryPayload["totalVisits"]) || 0;
+  const summaryLeads = Number(summaryPayload["totalLeads"]) || 0;
+  const summaryConversion = String(summaryPayload["conversionRate"]) || "0.0%";
+  const summaryNote =
+    typeof payload["note"] === "string" && payload["note"].trim()
+      ? payload["note"]
+      : "This is a generated analytics report template. Connect your data source for live values.";
+  const sourceBreakdown = Array.isArray(summaryPayload["sourceBreakdown"])
+    ? (summaryPayload["sourceBreakdown"] as Array<Record<string, unknown>>)
+    : [];
+  const reportSubject =
+    typeof payload["subject"] === "string" && payload["subject"].trim()
+      ? payload["subject"]
+      : isTest
+        ? "[Analytics Report Test] " + reportDate
+        : "[Analytics Report] " + reportDate;
 
-  const body = `Báo cáo analytics hàng ngày\n\nNgày: ${summary.date}\nLượt truy cập: ${summary.visits}\nLượt đăng ký: ${summary.leads}\nTỷ lệ CR: ${summary.conversionRate}\n\n${summary.note}`;
+  const textBody = [
+    "Báo cáo analytics",
+    `Ngày: ${summaryDate}`,
+    `Lượt truy cập: ${summaryVisits}`,
+    `Lượt đăng ký: ${summaryLeads}`,
+    `Tỷ lệ CR: ${summaryConversion}`,
+    "",
+    summaryNote,
+    ...sourceBreakdown.map((item) => {
+      const source = String(item["source"] ?? "other");
+      const visits = Number(item["visits"]) || 0;
+      const leads = Number(item["leads"]) || 0;
+      const rate = String(item["conversionRate"]) || "0.0%";
+      return `- ${source}: ${visits} visits · ${leads} leads · ${rate}`;
+    }),
+  ].join("\n");
 
+  const sourceRows = sourceBreakdown
+    .map((item) => {
+      const source = String(item["source"] ?? "other");
+      const visits = Number(item["visits"]) || 0;
+      const leads = Number(item["leads"]) || 0;
+      const rate = String(item["conversionRate"]) || "0.0%";
+      return `<li>${source}: ${visits} visits · ${leads} leads · ${rate}</li>`;
+    })
+    .join("");
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a; max-width: 720px; margin: 0 auto;">
+      <h2 style="margin-bottom: 12px;">Báo cáo analytics</h2>
+      <p><strong>Ngày:</strong> ${summaryDate}</p>
+      <p><strong>Lượt truy cập:</strong> ${summaryVisits}</p>
+      <p><strong>Lượt đăng ký:</strong> ${summaryLeads}</p>
+      <p><strong>Tỷ lệ CR:</strong> ${summaryConversion}</p>
+      <p style="margin-top: 14px; color: #475569;">${summaryNote}</p>
+      ${sourceBreakdown.length ? `<h3 style="margin-top: 20px; margin-bottom: 8px;">Nguồn traffic</h3><ul>${sourceRows}</ul>` : ""}
+    </div>
+  `;
   const emailResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -74,9 +158,10 @@ async function handleAnalyticsReportRequest(request: Request): Promise<Response>
     },
     body: JSON.stringify({
       from: fromEmail,
-      to: [recipient],
-      subject: isTest ? "[Analytics Report Test] " + reportDate : "[Analytics Report] " + reportDate,
-      text: body,
+      to: recipients,
+      subject: reportSubject,
+      text: textBody,
+      html: htmlBody,
     }),
   });
 
@@ -84,7 +169,9 @@ async function handleAnalyticsReportRequest(request: Request): Promise<Response>
     console.error("Analytics report email failed", await emailResponse.text());
     return new Response("Analytics report email failed", { status: 502 });
   }
-  return new Response("Analytics report sent");
+  return new Response(JSON.stringify({ sent: true, recipients: recipients.length }), {
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
 }
 
 async function handleBackupRequest(request: Request): Promise<Response> {

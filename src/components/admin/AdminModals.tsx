@@ -30,6 +30,10 @@ import {
   saveLead,
   syncLeadsToSupabase,
   testSupabaseConnection,
+  buildAnalyticsReportSummary,
+  exportAnalyticsReportCsv,
+  exportAnalyticsReportJson,
+  exportAnalyticsReportPdf,
   type ConfigBackupSnapshot,
   type LeadSyncSummary,
   type SupabaseConnectionStatus,
@@ -3698,6 +3702,21 @@ function AnalyticsModal({ onClose }: ModalProps) {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingCloud, setLoadingCloud] = useState(false);
+  const today = new Date();
+  const last7Days = new Date(today);
+  last7Days.setDate(today.getDate() - 6);
+  const [rangeStart, setRangeStart] = useState<string>(last7Days.toISOString().slice(0, 10));
+  const [rangeEnd, setRangeEnd] = useState<string>(today.toISOString().slice(0, 10));
+  const [reportRecipients, setReportRecipients] = useState<string>(config.analyticsReport.recipientEmail || "");
+  const [reportSubject, setReportSubject] = useState<string>(config.analyticsReport.subject || "[Analytics Report] {date}");
+  const [reportNote, setReportNote] = useState<string>("Báo cáo tổng kết hoạt động marketing trong ngày.");
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    setReportRecipients(config.analyticsReport.recipientEmail || "");
+    setReportSubject(config.analyticsReport.subject || "[Analytics Report] {date}");
+  }, [config.analyticsReport.recipientEmail, config.analyticsReport.subject]);
+
   useEffect(() => {
     if (!configReady) return;
     if (config.admin.storageMode === "database") {
@@ -3721,6 +3740,58 @@ function AnalyticsModal({ onClose }: ModalProps) {
     window.addEventListener(ANALYTICS_UPDATED_EVENT, refresh);
     return () => window.removeEventListener(ANALYTICS_UPDATED_EVENT, refresh);
   }, [config, configReady]);
+
+  const handleExport = async (format: "csv" | "json" | "pdf") => {
+    const leads = config.admin.storageMode === "database" ? await loadCloudLeads(config) : loadLeads();
+    const snapshot = a ?? loadAnalytics();
+    const summary = buildAnalyticsReportSummary(leads, snapshot, {
+      start: rangeStart,
+      end: rangeEnd,
+    });
+    if (format === "csv") exportAnalyticsReportCsv(leads, snapshot, { start: rangeStart, end: rangeEnd });
+    if (format === "json") exportAnalyticsReportJson(leads, snapshot, { start: rangeStart, end: rangeEnd });
+    if (format === "pdf") exportAnalyticsReportPdf(leads, snapshot, { start: rangeStart, end: rangeEnd });
+    setActionMessage(`Đã xuất báo cáo ${summary.totalLeads} leads trong khoảng ${rangeStart} → ${rangeEnd}.`);
+  };
+
+  const handleSendReport = async () => {
+    const leads = config.admin.storageMode === "database" ? await loadCloudLeads(config) : loadLeads();
+    const snapshot = a ?? loadAnalytics();
+    const report = buildAnalyticsReportSummary(leads, snapshot, {
+      start: rangeStart,
+      end: rangeEnd,
+    });
+    const recipients = reportRecipients
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!recipients.length) {
+      setReportStatus("Chưa có email nhận báo cáo. Điền ít nhất 1 địa chỉ email.");
+      return;
+    }
+
+    setReportStatus("Đang gửi báo cáo…");
+    try {
+      const response = await fetch("/api/analytics-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipients,
+          subject: reportSubject.replace("{date}", rangeEnd),
+          note: reportNote || "Báo cáo tổng kết hoạt động marketing.",
+          summary: report,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { sent?: boolean; recipients?: number };
+      if (!response.ok || !payload.sent) {
+        throw new Error("Gửi báo cáo thất bại");
+      }
+      setReportStatus(`Đã gửi báo cáo đến ${payload.recipients ?? recipients.length} email.`);
+    } catch {
+      setReportStatus("Gửi báo cáo thất bại. Kiểm tra cấu hình Resend / REPORT_RECIPIENT_EMAIL.");
+    }
+  };
+
   const cr =
     a && a.visits > 0 ? ((a.leads / a.visits) * 100).toFixed(1) : "0.0";
   return (
@@ -3814,6 +3885,79 @@ function AnalyticsModal({ onClose }: ModalProps) {
           tone="text-red-600"
         />
       </div>
+
+      <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-white/10 dark:bg-white/5">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+          Báo cáo theo khoảng thời gian
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-[11px] text-neutral-600">
+            Từ
+            <input
+              type="date"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(e.target.value)}
+              className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs"
+            />
+          </label>
+          <label className="text-[11px] text-neutral-600">
+            Đến
+            <input
+              type="date"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+              className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => void handleExport("csv")} className="rounded-md border border-neutral-300 px-2 py-1.5 text-[11px] font-semibold">
+            Xuất CSV
+          </button>
+          <button type="button" onClick={() => void handleExport("json")} className="rounded-md border border-neutral-300 px-2 py-1.5 text-[11px] font-semibold">
+            Xuất JSON
+          </button>
+          <button type="button" onClick={() => void handleExport("pdf")} className="rounded-md border border-neutral-300 px-2 py-1.5 text-[11px] font-semibold">
+            Xuất PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-500/20 dark:bg-sky-500/5">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-700">
+          Gửi báo cáo qua email
+        </p>
+        <label className="block text-[11px] text-neutral-600">
+          Email nhận (nhiều email cách nhau bởi dấu phẩy / xuống dòng)
+          <textarea
+            value={reportRecipients}
+            onChange={(e) => setReportRecipients(e.target.value)}
+            className="mt-1 min-h-[70px] w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-xs"
+            placeholder="team@domain.com, sale2@domain.com"
+          />
+        </label>
+        <label className="mt-2 block text-[11px] text-neutral-600">
+          Chủ đề email
+          <input
+            value={reportSubject}
+            onChange={(e) => setReportSubject(e.target.value)}
+            className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-xs"
+          />
+        </label>
+        <label className="mt-2 block text-[11px] text-neutral-600">
+          Ghi chú báo cáo
+          <textarea
+            value={reportNote}
+            onChange={(e) => setReportNote(e.target.value)}
+            className="mt-1 min-h-[70px] w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-xs"
+          />
+        </label>
+        <button type="button" onClick={() => void handleSendReport()} className="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white">
+          Gửi báo cáo ngay
+        </button>
+        {reportStatus && <p className="mt-2 text-[11px] text-sky-700">{reportStatus}</p>}
+      </div>
+
       <p className="mb-2 mt-4 text-xs font-semibold text-neutral-700">
         Nguồn traffic (UTM)
       </p>
