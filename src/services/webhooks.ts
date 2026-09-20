@@ -71,11 +71,8 @@ function hashString(value: string): number {
 }
 
 export function buildSheetsRequest(payload: Record<string, unknown>) {
-  const encoded = new URLSearchParams({
-    payload: JSON.stringify(payload),
-  }).toString();
   return {
-    body: encoded,
+    body: `payload=${JSON.stringify(payload)}`,
     contentType: "application/x-www-form-urlencoded;charset=UTF-8",
   };
 }

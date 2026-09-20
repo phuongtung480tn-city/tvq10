@@ -18,10 +18,15 @@ export default defineConfig({
           if (id.includes("node_modules")) {
             if (
               id.includes("@tanstack/react-router") ||
-              id.includes("@tanstack/react-start") ||
               id.includes("@tanstack/router")
             ) {
               return "router-core";
+            }
+            if (id.includes("@tanstack/react-query")) {
+              return "query-core";
+            }
+            if (id.includes("@tanstack/react-start")) {
+              return "start-core";
             }
             if (id.includes("@radix-ui")) {
               return "ui-core";
@@ -40,6 +45,9 @@ export default defineConfig({
             }
             if (id.includes("react-dom") || id.includes("react")) {
               return "react-vendor";
+            }
+            if (id.includes("date-fns")) {
+              return "date-utils";
             }
             if (
               id.includes("zod") ||

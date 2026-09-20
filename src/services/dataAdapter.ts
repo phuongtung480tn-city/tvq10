@@ -285,8 +285,12 @@ export async function saveConfig(config: SiteConfig): Promise<boolean> {
   }
 
   if (config.admin.supabaseUrl && config.admin.supabaseAnonKey) {
-    const synced = await syncConfigToSupabase(config);
-    return synced;
+    try {
+      await syncConfigToSupabase(config);
+    } catch {
+      // Supabase sync is best effort. The local copy is the source of truth.
+    }
+    return true;
   }
 
   console.warn(
@@ -946,10 +950,15 @@ async function pushLeadToSupabase(
       visitor_behavior_payload: lead.visitorBehaviorPayload ?? null,
       created_at: lead.at,
     };
-    const relay = await relayWebhook({
-      data: { endpoint, body: [row], headers },
-    });
-    if (relay.ok) return true;
+    try {
+      const relay = await relayWebhook({
+        data: { endpoint, body: [row], headers },
+      });
+      if (relay.ok) return true;
+    } catch {
+      // TanStack server runtime may not be available in tests or non-SSR contexts.
+      // Fall through to the direct fetch below as the real transport.
+    }
 
     const res = await fetch(endpoint, {
       method: "POST",

@@ -13,6 +13,77 @@ const countdownSchema = z.object({
   url: z.string().url(),
 });
 
+async function decrementCountdownWithServiceRoleImpl(input: {
+  url: string;
+}): Promise<{ ok: boolean; changed?: boolean; reason?: string }> {
+  const url = input.url.replace(/\/$/, "");
+  const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"] || "";
+
+  const headers = {
+    apikey: serviceKey,
+    Authorization: serviceKey ? `Bearer ${serviceKey}` : "",
+  };
+
+  const read = await fetch(
+    `${url}/rest/v1/funnel_configs?id=eq.1&select=data`,
+    {
+      headers,
+    },
+  );
+  if (!read.ok) return { ok: false, reason: "read_failed" };
+
+  const rows = (await read.json()) as Array<{
+    data?: {
+      countdown?: {
+        slotsLeft?: number;
+        enabled?: boolean;
+        headline?: string;
+      };
+    };
+  }>;
+  const dataRow = rows[0]?.data as Record<string, unknown> | undefined;
+  const countdown = dataRow?.["countdown"] as
+    Record<string, unknown> | undefined;
+  const nextData = structuredClone((dataRow ?? {}) as Record<string, unknown>);
+  const currentSlots = Number(
+    countdown && typeof countdown["slotsLeft"] !== "undefined"
+      ? countdown["slotsLeft"]
+      : 12,
+  );
+  const nextCountdown = {
+    ...(countdown ?? {}),
+    enabled: true,
+    autoDecrement: true,
+    headline:
+      typeof countdown?.["headline"] === "string"
+        ? countdown["headline"]
+        : "suất học bổng miễn 100% KTX tháng này",
+    slotsLeft: Math.max(0, currentSlots - 1),
+    template:
+      typeof countdown?.["template"] === "string"
+        ? countdown["template"]
+        : "premium",
+  };
+  nextData["countdown"] = nextCountdown;
+
+  const write = await fetch(`${url}/rest/v1/funnel_configs?id=eq.1`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
+      data: nextData,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+
+  return write.ok
+    ? { ok: true, changed: true }
+    : { ok: false, reason: "write_failed" };
+}
+
 function stripSecrets(config: Record<string, unknown>) {
   const copy = structuredClone(config);
   const admin = (copy["admin"] || {}) as Record<string, unknown>;
@@ -80,75 +151,27 @@ export const saveConfigWithSupabaseAuth = createServerFn({ method: "POST" })
     return { ok: true, accessToken: authPayload.access_token } as const;
   });
 
-export const decrementCountdownWithServiceRole = createServerFn({
+export async function decrementCountdownWithServiceRole(input: {
+  data: { url: string };
+}): Promise<{ ok: boolean; changed?: boolean; reason?: string }> {
+  const parsed = countdownSchema.safeParse(input.data);
+  if (!parsed.success) {
+    return { ok: false, reason: "invalid_input" };
+  }
+
+  const url = (process.env["SUPABASE_URL"] || parsed.data.url).replace(
+    /\/$/,
+    "",
+  );
+  return decrementCountdownWithServiceRoleImpl({ url });
+}
+
+export const decrementCountdownWithServiceRoleServer = createServerFn({
   method: "POST",
 })
   .validator((input) => countdownSchema.parse(input))
   .handler(async ({ data }) => {
-    const url = (process.env["SUPABASE_URL"] || data.url).replace(/\/$/, "");
-    const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-    if (!serviceKey) return { ok: false, reason: "missing_service_key" };
-    const headers = {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-    };
-    const read = await fetch(
-      `${url}/rest/v1/funnel_configs?id=eq.1&select=data`,
-      { headers },
-    );
-    if (!read.ok) return { ok: false, reason: "read_failed" };
-    const rows = (await read.json()) as Array<{
-      data?: {
-        countdown?: {
-          slotsLeft?: number;
-          enabled?: boolean;
-          headline?: string;
-        };
-      };
-    }>;
-    const dataRow = rows[0]?.data as Record<string, unknown> | undefined;
-    const countdown = dataRow?.["countdown"] as
-      Record<string, unknown> | undefined;
-    const nextData = structuredClone(
-      (dataRow ?? {}) as Record<string, unknown>,
-    );
-    const currentSlots = Number(
-      countdown && typeof countdown["slotsLeft"] !== "undefined"
-        ? countdown["slotsLeft"]
-        : 12,
-    );
-    const nextCountdown = {
-      ...(countdown ?? {}),
-      enabled: true,
-      autoDecrement: true,
-      headline:
-        typeof countdown?.["headline"] === "string"
-          ? countdown["headline"]
-          : "suất học bổng miễn 100% KTX tháng này",
-      slotsLeft: Math.max(0, currentSlots - 1),
-      template:
-        typeof countdown?.["template"] === "string"
-          ? countdown["template"]
-          : "premium",
-    };
-    nextData["countdown"] = nextCountdown;
-
-    const write = await fetch(`${url}/rest/v1/funnel_configs?on_conflict=id`, {
-      method: "POST",
-      headers: {
-        ...headers,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify([
-        {
-          id: 1,
-          data: nextData,
-          updated_at: new Date().toISOString(),
-        },
-      ]),
+    return decrementCountdownWithServiceRoleImpl({
+      url: (process.env["SUPABASE_URL"] || data.url).replace(/\/$/, ""),
     });
-    return write.ok
-      ? { ok: true, changed: true }
-      : { ok: false, reason: "write_failed" };
   });
