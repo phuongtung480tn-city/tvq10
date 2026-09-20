@@ -8,6 +8,7 @@ import { heroResponsive, galleryResponsive } from "@/lib/responsive-assets";
 import { MAJORS } from "@/components/LeadForm";
 import { Reveal } from "@/components/Reveal";
 import { ScarcityBar } from "@/components/ScarcityBar";
+import { DEFAULT_CONFIG } from "@/config/site-config";
 import { useSiteConfig } from "@/lib/use-site-config";
 import { getVariant } from "@/lib/ab";
 import { contactLinks } from "@/lib/contact-links";
