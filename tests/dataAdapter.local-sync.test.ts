@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const localStore = new Map<string, string>();
+const sessionStore = new Map<string, string>();
 
 globalThis.window = {
   localStorage: {
@@ -13,6 +14,17 @@ globalThis.window = {
     },
     removeItem(key: string) {
       localStore.delete(key);
+    },
+  },
+  sessionStorage: {
+    getItem(key: string) {
+      return sessionStore.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      sessionStore.set(key, value);
+    },
+    removeItem(key: string) {
+      sessionStore.delete(key);
     },
   },
   setTimeout,
@@ -153,7 +165,7 @@ test("session phone tracking remembers the mobile number and whether the form wa
     getSessionPhoneState,
   } = await import("../src/lib/visitor-tracking.ts");
 
-  localStore.clear();
+  sessionStore.clear();
   setSessionPhoneHint("0912345678");
   assert.equal(getSessionPhoneState().phoneHint, "0912345678");
   assert.equal(getSessionPhoneState().formSubmitted, false);
@@ -163,6 +175,22 @@ test("session phone tracking remembers the mobile number and whether the form wa
   assert.equal(state.phoneHint, "0912345678");
   assert.equal(state.submittedPhone, "0912345678");
   assert.equal(state.formSubmitted, true);
+});
+
+test("buildVisitorBehaviorPayload can read session phone state without crashing", async () => {
+  const { setSessionPhoneHint } = await import("../src/lib/visitor-tracking.ts");
+  const { buildVisitorBehaviorPayload } = await import("../src/lib/behavior.ts");
+
+  sessionStore.clear();
+  setSessionPhoneHint("0912345678");
+
+  const payload = buildVisitorBehaviorPayload({
+    city: "Hà Nội",
+    major: "Công nghệ Ô tô điện",
+  });
+
+  assert.equal(payload.visitorBehaviorPayload.sessionPhoneHint, "0912345678");
+  assert.equal(payload.behavior.session_phone_hint, "0912345678");
 });
 
 test("decrementCountdownWithServiceRole creates a countdown row when config is missing", async () => {
