@@ -17,6 +17,24 @@ export function ExitIntentPopup() {
   const startTimeRef = useRef<number>(performance.now());
   const hasImage = Boolean(exitIntent.showImage && exitIntent.imageUrl);
   const imageOnLeft = exitIntent.imagePosition !== "right";
+  const panelStyle = {
+    fontFamily: exitIntent.fontFamily || "inherit",
+    color: exitIntent.textColor || "#f8fafc",
+    background:
+      "radial-gradient(circle_at_top, rgba(251,191,36,0.25), transparent 35%), rgba(15,23,42,0.96)",
+  } as const;
+  const titleStyle = {
+    color: exitIntent.titleColor || "#ffffff",
+  } as const;
+  const descriptionStyle = {
+    color: exitIntent.descriptionColor || "#e2e8f0",
+  } as const;
+  const buttonStyle = {
+    background:
+      exitIntent.buttonBackground ||
+      "linear-gradient(135deg, #c0392b 0%, #fbbf24 100%)",
+    color: exitIntent.buttonTextColor || "#ffffff",
+  } as const;
 
   const template = useMemo(
     () => getExitIntentTemplate(exitIntent),
@@ -157,8 +175,9 @@ export function ExitIntentPopup() {
         aria-live="polite"
       >
         <div
-          className="overflow-hidden rounded-[1.8rem] border border-white/15 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_transparent_35%),_rgba(15,23,42,0.96)] shadow-[0_30px_90px_rgba(15,23,42,0.42)] backdrop-blur-xl"
+          className="overflow-hidden rounded-[1.8rem] border border-white/15 shadow-[0_30px_90px_rgba(15,23,42,0.42)] backdrop-blur-xl"
           style={{
+            ...panelStyle,
             animation:
               "exitIntentRise 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both",
           }}
@@ -186,7 +205,10 @@ export function ExitIntentPopup() {
             <div className="p-4 sm:p-5">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-black leading-tight text-white sm:text-xl">
+                  <h3
+                    className="text-lg font-black leading-tight sm:text-xl"
+                    style={titleStyle}
+                  >
                     {template.title}
                   </h3>
                 </div>
@@ -201,14 +223,15 @@ export function ExitIntentPopup() {
                   </button>
                 )}
               </div>
-              <p className="text-sm leading-relaxed text-slate-200/90">
+              <p className="text-sm leading-relaxed" style={descriptionStyle}>
                 {template.description}
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <a
                   href="#dang-ky"
                   onClick={() => setDismissed(true)}
-                  className="inline-flex flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-primary to-amber-500 px-4 py-3 text-sm font-black text-primary-foreground shadow-[0_14px_30px_rgba(251,191,36,0.35)] transition duration-200 hover:scale-[1.01] hover:brightness-110"
+                  className="inline-flex flex-1 items-center justify-center rounded-xl px-4 py-3 text-sm font-black shadow-[0_14px_30px_rgba(251,191,36,0.35)] transition duration-200 hover:scale-[1.01] hover:brightness-110"
+                  style={buttonStyle}
                 >
                   {template.cta}
                 </a>

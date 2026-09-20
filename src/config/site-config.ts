@@ -103,6 +103,12 @@ export interface ExitIntentConfig {
   title: string;
   description: string;
   ctaLabel: string;
+  fontFamily: string;
+  textColor: string;
+  titleColor: string;
+  descriptionColor: string;
+  buttonBackground: string;
+  buttonTextColor: string;
   triggerDelaySec: number;
   minTimeOnPageSec: number;
   minScrollPercent: number;
@@ -427,7 +433,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
       "Chương trình du học nghề Trung Quốc trọn gói: học bổng miễn 100% KTX, vừa học vừa làm lương 15-25 triệu/tháng, cam kết Visa 100%. Đăng ký tư vấn miễn phí.",
     keywords:
       "du học nghề trung quốc, học bổng trung quốc, du học vừa học vừa làm",
-    ogImage: "/og-image.jpg",
+    ogImage:
+      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80",
     faviconUrl: "/favicon.ico",
     schemaType: "EducationalOrganization",
   },
@@ -808,6 +815,12 @@ export const DEFAULT_CONFIG: SiteConfig = {
     description:
       "Bạn đang lướt trên trang. Nếu muốn nhận gói tư vấn miễn phí, số lượng suất tư vấn và học bổng ưu tiên đang được ưu tiên cho người quan tâm trong 24h tới.",
     ctaLabel: "Nhận tư vấn ngay",
+    fontFamily: "Be Vietnam Pro",
+    textColor: "#f8fafc",
+    titleColor: "#ffffff",
+    descriptionColor: "#e2e8f0",
+    buttonBackground: "linear-gradient(135deg, #c0392b 0%, #fbbf24 100%)",
+    buttonTextColor: "#ffffff",
     triggerDelaySec: 8,
     minTimeOnPageSec: 20,
     minScrollPercent: 35,

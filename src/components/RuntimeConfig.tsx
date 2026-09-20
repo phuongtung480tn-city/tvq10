@@ -436,8 +436,11 @@ export function RuntimeConfig() {
           : `${window.location.origin}${safeOgImage.startsWith("/") ? safeOgImage : `/${safeOgImage}`}`
         : "",
     );
+    setProperty("og:image:alt", safeTitle);
     setMeta("twitter:title", safeTitle);
     setMeta("twitter:description", safeDescription);
+    setMeta("twitter:image", safeOgImage || "");
+    setMeta("twitter:image:alt", safeTitle);
     setLink("canonical", window.location.href.split("#")[0] || "/");
     setLink(
       "icon",

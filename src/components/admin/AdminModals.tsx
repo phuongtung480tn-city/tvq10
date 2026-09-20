@@ -246,6 +246,63 @@ function ExitIntentModal({ onClose }: ModalProps) {
           }
         />
       </Field>
+      <Field label="Font chữ popup">
+        <TextInput
+          value={e.fontFamily}
+          onChange={(event) =>
+            update((d) => (d.exitIntent.fontFamily = event.target.value))
+          }
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Màu chữ chung">
+          <TextInput
+            type="color"
+            value={e.textColor}
+            onChange={(event) =>
+              update((d) => (d.exitIntent.textColor = event.target.value))
+            }
+          />
+        </Field>
+        <Field label="Màu tiêu đề">
+          <TextInput
+            type="color"
+            value={e.titleColor}
+            onChange={(event) =>
+              update((d) => (d.exitIntent.titleColor = event.target.value))
+            }
+          />
+        </Field>
+        <Field label="Màu mô tả">
+          <TextInput
+            type="color"
+            value={e.descriptionColor}
+            onChange={(event) =>
+              update(
+                (d) => (d.exitIntent.descriptionColor = event.target.value),
+              )
+            }
+          />
+        </Field>
+        <Field label="Màu chữ nút">
+          <TextInput
+            type="color"
+            value={e.buttonTextColor}
+            onChange={(event) =>
+              update((d) => (d.exitIntent.buttonTextColor = event.target.value))
+            }
+          />
+        </Field>
+      </div>
+      <Field label="Nền nút CTA">
+        <TextInput
+          value={e.buttonBackground}
+          placeholder="linear-gradient(...) hoặc #hex"
+          onChange={(event) =>
+            update((d) => (d.exitIntent.buttonBackground = event.target.value))
+          }
+        />
+      </Field>
       <div className="grid grid-cols-3 gap-2">
         <Field label="Delay (s)">
           <TextInput

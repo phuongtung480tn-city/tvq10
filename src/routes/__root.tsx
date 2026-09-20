@@ -16,6 +16,7 @@ import { AdminBar } from "../components/admin/AdminBar";
 import { AdminModals } from "../components/admin/AdminModals";
 import { DeviceFrame } from "../components/admin/DeviceFrame";
 import { RuntimeConfig } from "../components/RuntimeConfig";
+import { DEFAULT_CONFIG } from "../config/site-config";
 
 function NotFoundComponent() {
   return (
@@ -89,7 +90,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         },
         { property: "og:type", content: "website" },
         { property: "og:locale", content: "vi_VN" },
+        { property: "og:image", content: DEFAULT_CONFIG.seo.ogImage },
+        { property: "og:image:alt", content: DEFAULT_CONFIG.seo.title },
         { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: DEFAULT_CONFIG.seo.ogImage },
+        { name: "twitter:image:alt", content: DEFAULT_CONFIG.seo.title },
       ],
       links: [
         { rel: "stylesheet", href: appCss },
