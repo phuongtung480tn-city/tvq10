@@ -13,7 +13,10 @@ import { getVariant, utmSource } from "@/lib/ab";
 import { getUtmPayload } from "@/lib/utm-hub";
 import { UtmHiddenFields } from "@/components/UtmHiddenFields";
 import { useSiteConfig } from "@/lib/use-site-config";
-import { dispatchLead } from "@/services/webhooks";
+import {
+  dispatchLead,
+  selectSalesRecipient,
+} from "@/services/webhooks";
 import {
   isDuplicateLead,
   isDuplicateLeadRemote,
@@ -514,54 +517,24 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
           const saleList = parseSalesList(
             config.emailAutomation.notifyEmail || config.emailAutomation.salesEmailList.join(","),
           );
-          const weighted = Object.fromEntries(
+          const recipients =
+            config.emailAutomation.salesEmailList.length > 0
+              ? config.emailAutomation.salesEmailList
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+              : saleList;
+          const weights = Object.fromEntries(
             Object.entries(config.emailAutomation.salesDistributionWeights || {}).filter(
               ([key, val]) => Boolean(key) && Number(val) > 0,
             ),
           );
-          const accumulate = (entries: [string, number][]) => {
-            const total = entries.reduce((sum, [, weight]) => sum + Number(weight || 0), 0);
-            if (!total) return entries[0]?.[0] || "";
-            let pointer = Math.random() * total;
-            for (const [email, weight] of entries) {
-              pointer -= Number(weight || 0);
-              if (pointer <= 0) return email;
-            }
-            return entries[entries.length - 1]?.[0] || "";
-          };
-
-          if (config.emailAutomation.salesEmailList.length > 0) {
-            const recipients = config.emailAutomation.salesEmailList
-              .map((item) => item.trim())
-              .filter(Boolean);
-            if (recipients.length === 0) return "";
-            if (config.emailAutomation.salesDistributionMode === "weighted_percent") {
-              const entries = recipients.map((email) => [email, Number(weighted[email] || 100 / recipients.length)] as [string, number]);
-              return accumulate(entries);
-            }
-            if (config.emailAutomation.salesDistributionMode === "random") {
-              return recipients[Math.floor(Math.random() * recipients.length)] || "";
-            }
-            const today = new Date();
-            const dayKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
-            const roundRobinSeed = Number.parseInt(`${dayKey.split("-").join("")}`, 10) || 0;
-            const selectIndex = roundRobinSeed % recipients.length;
-            return recipients[selectIndex] || "";
-          }
-
-          if (saleList.length === 0) return "";
-          if (config.emailAutomation.salesDistributionMode === "weighted_percent") {
-            const entries = saleList.map((email) => [email, Number(weighted[email] || 100 / saleList.length)] as [string, number]);
-            return accumulate(entries);
-          }
-          if (config.emailAutomation.salesDistributionMode === "random") {
-            return saleList[Math.floor(Math.random() * saleList.length)] || "";
-          }
-          const today = new Date();
-          const dayKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
-          const roundRobinSeed = Number.parseInt(`${dayKey.split("-").join("")}`, 10) || 0;
-          const selectIndex = roundRobinSeed % saleList.length;
-          return saleList[selectIndex] || "";
+          return selectSalesRecipient({
+            recipients,
+            mode: config.emailAutomation.salesDistributionMode,
+            weights,
+            leadKey: payload.idempotency_key || payload.webhook_delivery_id || payload.phone,
+            date: new Date().toISOString().slice(0, 10),
+          });
         };
 
         const selectedSaleRecipient = chooseSalesRecipient();
@@ -630,11 +603,18 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
           void dispatchLead(config, {
             ...payload,
             event: "sale_assignment_email",
+            lead_id: savedLead.id,
             sales_email_to: selectedSaleRecipient,
             sales_email_recipients: saleRecipients,
             selected_sales_email: selectedSaleRecipient,
+            sale_assigned_to: selectedSaleRecipient,
             sales_distribution_mode: config.emailAutomation.salesDistributionMode,
             sales_distribution_weights: config.emailAutomation.salesDistributionWeights,
+            sales_assignment_result: {
+              selected_sales_email: selectedSaleRecipient,
+              recipients: saleRecipients,
+              mode: config.emailAutomation.salesDistributionMode,
+            },
           });
         }
 

@@ -4924,6 +4924,7 @@ function LandingEditorModal({ onClose }: ModalProps) {
   const content = config.landing;
   const importRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const footerLogoInputRef = useRef<HTMLInputElement>(null);
   const heroImageInputRef = useRef<HTMLInputElement>(null);
   const heroSliderInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -4931,6 +4932,7 @@ function LandingEditorModal({ onClose }: ModalProps) {
   const graduationInputRef = useRef<HTMLInputElement>(null);
   const expertInputRef = useRef<HTMLInputElement>(null);
   const [logoError, setLogoError] = useState("");
+  const [footerLogoError, setFooterLogoError] = useState("");
   const [heroMediaError, setHeroMediaError] = useState("");
   const [graduationError, setGraduationError] = useState("");
   const [templateType, setTemplateType] = useState("promo");
@@ -5675,6 +5677,67 @@ function LandingEditorModal({ onClose }: ModalProps) {
       </div>
       <div className="mb-3 rounded-xl border border-neutral-200 p-3 dark:border-white/10">
         <p className="mb-2 text-xs font-bold">Logo & menu footer</p>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200 dark:bg-white/10 dark:ring-white/10">
+            {config.footer.logoUrl ? (
+              <img
+                src={config.footer.logoUrl}
+                alt="Preview footer logo"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <div className="text-[10px] font-bold text-neutral-500">Logo</div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => footerLogoInputRef.current?.click()}
+                className="rounded-lg bg-neutral-900 px-3 py-2 text-xs font-bold text-white"
+              >
+                Tải logo footer lên
+              </button>
+              {config.footer.logoUrl && (
+                <button
+                  type="button"
+                  onClick={() => update((draft) => (draft.footer.logoUrl = ""))}
+                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600"
+                >
+                  Xóa logo
+                </button>
+              )}
+            </div>
+            <input
+              ref={footerLogoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const result = typeof reader.result === "string" ? reader.result : "";
+                    const isAllowed = /^data:image\/(png|jpeg|webp|svg\+xml)/i.test(result) || /^https?:\/\//i.test(file.name) || /^\//.test(file.name);
+                    if (!isAllowed || !result) {
+                      setFooterLogoError("Logo phải là PNG, JPG, WebP hoặc SVG.");
+                      return;
+                    }
+                    update((draft) => (draft.footer.logoUrl = result));
+                    setFooterLogoError("");
+                  };
+                  reader.onerror = () => setFooterLogoError("Không thể đọc file logo footer.");
+                  reader.readAsDataURL(file);
+                }
+                event.target.value = "";
+              }}
+            />
+            {footerLogoError && (
+              <p className="text-[11px] font-semibold text-red-600">{footerLogoError}</p>
+            )}
+          </div>
+        </div>
         <Field label="Logo footer URL">
           <TextInput
             type="url"

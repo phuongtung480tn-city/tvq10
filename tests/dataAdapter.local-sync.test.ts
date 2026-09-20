@@ -183,3 +183,46 @@ test("decrementCountdownWithServiceRole creates a countdown row when config is m
     ),
   );
 });
+
+test("selectSalesRecipient follows weighted and round robin formulas", async () => {
+  const { selectSalesRecipient } = await import("../src/services/webhooks.ts");
+  const recipients = ["sale1@test.com", "sale2@test.com", "sale3@test.com"];
+
+  const randomChoice = selectSalesRecipient({
+    recipients,
+    mode: "random",
+    weights: {},
+    leadKey: "lead-1",
+  });
+  assert.ok(recipients.includes(randomChoice));
+
+  const weightedChoice = selectSalesRecipient({
+    recipients,
+    mode: "weighted_percent",
+    weights: { "sale1@test.com": 60, "sale2@test.com": 30, "sale3@test.com": 10 },
+    leadKey: "weighted-lead",
+  });
+  assert.equal(weightedChoice, "sale1@test.com");
+
+  const roundRobinChoice = selectSalesRecipient({
+    recipients,
+    mode: "daily_round_robin",
+    weights: {},
+    leadKey: "lead-date-1",
+    date: "2026-09-20",
+  });
+  assert.equal(roundRobinChoice, "sale1@test.com");
+});
+
+test("sheets webhook payload is encoded as form payload for Apps Script", async () => {
+  const { buildSheetsRequest } = await import("../src/services/webhooks.ts");
+  const request = buildSheetsRequest({
+    full_name: "Nguyễn Văn A",
+    phone: "0900000001",
+    event: "lead_created",
+  });
+
+  assert.match(request.body, /payload=/);
+  assert.match(request.body, /Nguyễn Văn A/);
+  assert.equal(request.contentType, "application/x-www-form-urlencoded;charset=UTF-8");
+});

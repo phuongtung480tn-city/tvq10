@@ -13,6 +13,66 @@ export interface WebhookResult {
   attempts: number;
 }
 
+export interface SelectSalesRecipientInput {
+  recipients: string[];
+  mode: "random" | "daily_round_robin" | "weighted_percent";
+  weights?: Record<string, number>;
+  leadKey?: string;
+  date?: string;
+}
+
+export function selectSalesRecipient({
+  recipients,
+  mode,
+  weights = {},
+  leadKey = "",
+  date,
+}: SelectSalesRecipientInput): string {
+  const available = recipients.filter(Boolean);
+  if (available.length === 0) return "";
+
+  if (mode === "weighted_percent") {
+    const entries = available.map((email) => [
+      email,
+      Number(weights[email] ?? 100 / available.length),
+    ] as const);
+    const total = entries.reduce((sum, [, weight]) => sum + (Number(weight) || 0), 0);
+    if (total <= 0) return available[0] || "";
+    const pivot = (Math.abs(hashString(leadKey || date || available.join("|"))) % total) + 1;
+    let cursor = 0;
+    for (const [email, weight] of entries) {
+      cursor += Number(weight) || 0;
+      if (pivot <= cursor) return email;
+    }
+    return entries[entries.length - 1][0];
+  }
+
+  if (mode === "random") {
+    return available[Math.floor(Math.random() * available.length)] || "";
+  }
+
+  const dayKey = date || new Date().toISOString().slice(0, 10);
+  const seed = hashString(`${dayKey}|${leadKey || available.join("|")}`);
+  return available[Math.abs(seed) % available.length] || available[0] || "";
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function buildSheetsRequest(payload: Record<string, unknown>) {
+  const encoded = new URLSearchParams({ payload: JSON.stringify(payload) }).toString();
+  return {
+    body: encoded,
+    contentType: "application/x-www-form-urlencoded;charset=UTF-8",
+  };
+}
+
 const TIMEOUT_MS = 4_000;
 const MAX_PAYLOAD_BYTES = 60_000;
 
@@ -186,34 +246,34 @@ async function postOne(
 
     if (ep.type === "sheets") {
       try {
-        // Apps Script Web Apps redirect their POST URL. Form-encoded Beacon
-        // preserves the body through that redirect without CORS/preflight.
-        const encoded = new URLSearchParams({
-          payload: JSON.stringify(body),
-        }).toString();
-        const queued =
-          typeof navigator !== "undefined" && navigator.sendBeacon
-            ? navigator.sendBeacon(
-                endpoint,
-                new Blob([encoded], {
-                  type: "application/x-www-form-urlencoded;charset=UTF-8",
-                }),
-              )
-            : false;
-        if (!queued) {
-          await fetch(endpoint, {
-            method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-            body: encoded,
-            keepalive: true,
-          });
+        const request = buildSheetsRequest(
+          typeof body === "object" && body !== null ? (body as Record<string, unknown>) : { payload: body },
+        );
+        const relay = await Promise.race([
+          relayWebhook({
+            data: {
+              endpoint,
+              body: request.body,
+              headers: { "Content-Type": request.contentType },
+            },
+          }),
+          new Promise<null>((resolve) => window.setTimeout(() => resolve(null), TIMEOUT_MS)),
+        ]);
+        if (relay) {
+          return {
+            label: ep.label || ep.type,
+            ok: relay.ok,
+            attempts: 1,
+            detail: relay.ok
+              ? "server_relay_sheets"
+              : relay.detail || `HTTP ${relay.status}`,
+          };
         }
         return {
           label: ep.label || ep.type,
-          ok: true,
+          ok: false,
           attempts: 1,
-          detail: queued ? "browser_direct_queued" : "browser_direct_sent",
+          detail: "Server relay timeout",
         };
       } catch (error) {
         return {
