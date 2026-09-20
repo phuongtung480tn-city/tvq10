@@ -259,6 +259,31 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
     let leadSaved = false;
     let leadDispatchStarted = false;
     let emailDeliveryFailed = false;
+    let successFinalized = false;
+    // Khi lead đã được ghi nhận, khách LUÔN phải thấy trạng thái thành công +
+    // chuyển sang trang cảm ơn. Mọi lỗi phụ (webhook, tracking, redirect) không
+    // được biến submit thành thất bại. Helper này chạy tối đa một lần.
+    const finalizeSuccess = () => {
+      if (successFinalized) return;
+      successFinalized = true;
+      setForm(EMPTY);
+      submittingRef.current = false;
+      setStatus("done");
+      toast.success("Đăng ký thành công!", {
+        description: "Tư vấn viên sẽ liên hệ lại trong 5 phút.",
+      });
+      // Redirect (Thank You Page) nếu Admin cấu hình.
+      const redirect = config.form.redirectUrl?.trim();
+      if (redirect && typeof window !== "undefined") {
+        window.location.assign(redirect);
+        return;
+      }
+      const thankYou = config.pages.find(
+        (page) => page.enabled && page.kind === "thankYou",
+      );
+      if (thankYou && typeof window !== "undefined")
+        window.location.assign(`/${thankYou.path}`);
+    };
     try {
       const variant = getVariant(config.abTest.enabled, config.abTest.split);
       syncBehaviorSession({
@@ -412,7 +437,29 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
       });
       leadDispatchStarted = true;
       const savedLead = await savePromise;
-      const delivery = await dispatchLead(config, payload);
+      // dispatchLead tự bắt lỗi từng endpoint, nhưng vẫn có thể throw sớm
+      // (vd payload không serialize được). Không để việc đó chặn submit đã lưu.
+      let delivery: Awaited<ReturnType<typeof dispatchLead>>;
+      try {
+        delivery = await dispatchLead(config, payload);
+      } catch (dispatchErr) {
+        console.warn("[v0] dispatchLead threw, treated as failed delivery:", dispatchErr);
+        delivery = {
+          ok: false,
+          failedCount: 1,
+          results: [
+            {
+              label: "Webhook chính",
+              ok: false,
+              attempts: 0,
+              detail:
+                dispatchErr instanceof Error
+                  ? dispatchErr.message
+                  : "Không gửi được webhook",
+            },
+          ],
+        };
+      }
       let webhookDeliveryFailed = false;
       if (!delivery.ok) {
         webhookDeliveryFailed = true;
@@ -444,17 +491,26 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
           "Database mode fallback to local storage: Supabase cloud sync unavailable; lead was still saved locally.",
         );
       }
-      void decrementCountdown(savedLead.id).then((countdownSaved) => {
-        if (!countdownSaved) {
-          toast.warning("Lead đã lưu, nhưng chưa cập nhật được số suất.", {
-            description:
-              "Kiểm tra SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY trên server rồi redeploy.",
-          });
-        }
-      });
+      void decrementCountdown(savedLead.id)
+        .then((countdownSaved) => {
+          if (!countdownSaved) {
+            toast.warning("Lead đã lưu, nhưng chưa cập nhật được số suất.", {
+              description:
+                "Kiểm tra SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY trên server rồi redeploy.",
+            });
+          }
+        })
+        .catch((countdownErr) => {
+          console.warn("[v0] decrementCountdown failed:", countdownErr);
+        });
 
       // Ghi nhận chuyển đổi cho Analytics Dashboard + A/B comparison.
-      trackConversion(source, config.abTest.enabled ? variant : undefined);
+      // Lỗi tracking (vd localStorage đầy) không được chặn luồng submit.
+      try {
+        trackConversion(source, config.abTest.enabled ? variant : undefined);
+      } catch (trackErr) {
+        console.warn("[v0] trackConversion failed:", trackErr);
+      }
 
       // Automated Email Sequencer (auto-responder) — chạy phía server nếu bật.
       // Toàn bộ khối này không được phép làm hỏng luồng submit chính: lỗi cấu
@@ -703,31 +759,26 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
         );
       }
 
-      // Chỉ bắn tracking SAU khi dữ liệu đã gửi thành công
-      trackLead(
-        { content_name: form.major || "Du hoc nghe Trung Quoc" },
-        config.tracking.events,
-        config.tracking.ga4Id,
-      );
-      setForm(EMPTY);
-      submittingRef.current = false;
-      setStatus("done");
-      toast.success("Đăng ký thành công!", {
-        description: "Tư vấn viên sẽ liên hệ lại trong 5 phút.",
-      });
-      // Redirect (Thank You Page) nếu Admin cấu hình.
-      const redirect = config.form.redirectUrl?.trim();
-      if (redirect && typeof window !== "undefined")
-        window.location.assign(redirect);
-      else {
-        const thankYou = config.pages.find(
-          (page) => page.enabled && page.kind === "thankYou",
+      // Chỉ bắn tracking SAU khi dữ liệu đã gửi thành công.
+      // Lỗi tracking bên thứ ba không được chặn luồng submit của khách.
+      try {
+        trackLead(
+          { content_name: form.major || "Du hoc nghe Trung Quoc" },
+          config.tracking.events,
+          config.tracking.ga4Id,
         );
-        if (thankYou && typeof window !== "undefined")
-          window.location.assign(`/${thankYou.path}`);
+      } catch (trackErr) {
+        console.warn("[v0] trackLead failed:", trackErr);
       }
+      finalizeSuccess();
     } catch (err) {
       console.error("Lead submit failed:", err);
+      // Lead đã được ghi nhận: mọi lỗi phát sinh sau đó (webhook/tracking/
+      // redirect) chỉ là phụ. Khách vẫn phải thấy trạng thái thành công.
+      if (leadSaved) {
+        finalizeSuccess();
+        return;
+      }
       if (!leadSaved && !leadDispatchStarted) {
         const fallbackPayload = {
           full_name: name.slice(0, 100),

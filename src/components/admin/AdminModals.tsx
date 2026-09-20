@@ -87,7 +87,7 @@ function ExitIntentModal({ onClose }: ModalProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   function normalizeImageUpload(file: File): Promise<string> {
-    const quality = Math.max(0.5, Math.min(0.92, content.imageOptimization.quality || 0.82));
+    const quality = Math.max(0.5, Math.min(0.92, config.landing.imageOptimization.quality || 0.82));
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -111,7 +111,7 @@ function ExitIntentModal({ onClose }: ModalProps) {
             return;
           }
           context.drawImage(image, 0, 0, width, height);
-          const targetType = content.imageOptimization.convertUploadsToWebp ? "image/webp" : file.type.includes("png") ? "image/png" : file.type.includes("jpeg") ? "image/jpeg" : "image/webp";
+          const targetType = config.imageOptimization.convertUploadsToWebp ? "image/webp" : file.type.includes("png") ? "image/png" : file.type.includes("jpeg") ? "image/jpeg" : "image/webp";
           canvas.toBlob(
             (blob) => {
               if (!blob) {
@@ -2678,7 +2678,7 @@ function EmailModal({ onClose }: ModalProps) {
       label: "Action Fast",
       accent: "#d97706",
       subject: "Bạn đã hoàn tất bước đầu tiên – {name}",
-      body: "Xin chào {name},\n\nCảm ơn anh/chị đã để lại thông tin trên website.\n\nChúng tôi đã nhận được yêu cầu và đang chuẩn bị liên hệ sớm nhất để tư vấn chi tiết theo nhu cầu của anh/chị.\n\nBạn chỉ cần giữ điện thoại sẵn sàng; tư vấn viên sẽ gọi tới {phone} trong thời gian ngắn nhất.\n\nNếu cần hỗ trợ ngay, hãy trả lời email này hoặc gọi hotline của chúng tôi để được hỗ trợ tức thì.\n\nTrân trọng,\nĐội ngũ tư vấn chuyên nghiệp",
+      body: "Xin chào {name},\n\nCảm ơn anh/chị đã để lại thông tin trên website.\n\nChúng tôi đã nhận được yêu cầu và đang chuẩn bị liên hệ sớm nhất để tư vấn chi tiết theo nhu cầu của anh/chị.\n\nBạn chỉ cần giữ đi���n thoại sẵn sàng; tư vấn viên sẽ gọi tới {phone} trong thời gian ngắn nhất.\n\nNếu cần hỗ trợ ngay, hãy trả lời email này hoặc gọi hotline của chúng tôi để được hỗ trợ tức thì.\n\nTrân trọng,\nĐội ngũ tư vấn chuyên nghiệp",
     },
     {
       id: "vip-roadmap",
@@ -5674,6 +5674,8 @@ function LandingEditorModal({ onClose }: ModalProps) {
       reader.readAsDataURL(file);
     });
   }
+  // Các hàm upload bên dưới dùng chung pipeline chuẩn hoá ảnh của modal này.
+  const normalizeImageUpload = readImageDataUrl;
 
   function uploadLogo(file: File) {
     setLogoError("");
@@ -5964,7 +5966,7 @@ function LandingEditorModal({ onClose }: ModalProps) {
   return (
     <AdminModal
       title="Sửa Giao Diện"
-      subtitle="Nội dung và hình ảnh landing page được lưu vào cấu hình"
+      subtitle="Nội dung và hình ảnh landing page đư���c lưu vào cấu hình"
       onClose={onClose}
     >
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
