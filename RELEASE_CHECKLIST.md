@@ -28,19 +28,19 @@ npx playwright test
 ## 2a. Admin sau khi kết nối Supabase
 
 - [ ] Đăng nhập `/admin` bằng Supabase Auth và user có `enabled = true` trong
-    `public.admin_users`.
+      `public.admin_users`.
 - [ ] `Cấu hình`: kiểm tra Storage, lưu config, tải lại trang và xác nhận dữ
-    liệu vẫn còn sau khi hydrate từ `funnel_configs`.
+      liệu vẫn còn sau khi hydrate từ `funnel_configs`.
 - [ ] `Cấu hình`: kiểm tra xuất/nhập config; file xuất không chứa anon key,
-    password, service key, token hoặc API key.
+      password, service key, token hoặc API key.
 - [ ] `Dữ liệu`: kiểm tra lead mới, tìm kiếm, xuất CSV, tải lại danh sách và
-    xóa dữ liệu thử nghiệm bằng RPC admin.
+      xóa dữ liệu thử nghiệm bằng RPC admin.
 - [ ] `Dữ liệu`: kiểm tra Analytics tăng lượt truy cập/lead, A/B theo nguồn và
-    reset analytics không trả về 401/403.
+      reset analytics không trả về 401/403.
 - [ ] `SEO`: đổi title, description, OG image, favicon và schema; lưu, tải lại
-    trang rồi kiểm tra `document.title`, meta tags, canonical và JSON-LD.
+      trang rồi kiểm tra `document.title`, meta tags, canonical và JSON-LD.
 - [ ] Khi Supabase lỗi tạm thời, xác nhận lead được giữ trong localStorage để
-    không mất dữ liệu và được đồng bộ lại theo quy trình migration.
+      không mất dữ liệu và được đồng bộ lại theo quy trình migration.
 
 ## 3. Phát hành
 
@@ -56,4 +56,4 @@ npx playwright test
 - [ ] Xác nhận lead thử nghiệm đã được xử lý/xóa theo quy trình dữ liệu.
 - [ ] Ghi lại commit, thời điểm deploy và thay đổi schema nếu có.
 - [ ] Chỉ giữ mã nguồn, tài liệu và migration trong Git; không commit `.output/`,
-  `.wrangler/`, `dist/`, `test-results/` hoặc file nén release.
+      `.wrangler/`, `dist/`, `test-results/` hoặc file nén release.

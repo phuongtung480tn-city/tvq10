@@ -1,62 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  getExitIntentTemplate,
+  templateMap,
+} from "@/components/exit-intent-templates";
 import { useSiteConfig } from "@/lib/use-site-config";
 
 const EXIT_INTENT_SHOWN_KEY = "funnel_exit_intent_shown_v1";
-
-export const templateMap = {
-  offer: {
-    badge: "Ưu đãi đặc biệt",
-    title: "Nhận tư vấn miễn phí + lộ trình học phù hợp",
-    description:
-      "Bạn đang quan tâm đến chương trình du học nghề. Nhận ngay lộ trình học, danh sách ngành hot, và ưu đãi học bổng phù hợp với mục tiêu của bạn.",
-    cta: "Nhận tư vấn ngay",
-  },
-  urgency: {
-    badge: "Sắp hết suất",
-    title: "Còn ít suất ưu tiên cho học bổng và tư vấn 1:1",
-    description:
-      "Chúng tôi đang ưu tiên xét duyệt cho khách quan tâm trong 24h tới. Đăng ký ngay để nhận lịch tư vấn riêng và ưu đãi phù hợp.",
-    cta: "Đăng ký nhận ưu đãi",
-  },
-  trust: {
-    badge: "Bảo mật thông tin",
-    title: "Tư vấn miễn phí, không ép mua, không lo rủi ro",
-    description:
-      "Hình thức tư vấn trực tiếp qua chuyên viên, rõ ràng, minh bạch và phù hợp với từng nhu cầu của học viên và gia đình.",
-    cta: "Nhận tư vấn 1:1",
-  },
-  premium: {
-    badge: "Chương trình premium",
-    title: "Được tư vấn theo lộ trình cá nhân và hỗ trợ 1:1",
-    description:
-      "Bạn đang ở giai đoạn muốn chọn đúng ngành, thời điểm và chiến lược học tối ưu nhất để tối đa hóa cơ hội việc làm sau tốt nghiệp.",
-    cta: "Ưu tiên đăng ký ngay",
-  },
-  limited: {
-    badge: "Chỉ còn vài suất",
-    title: "Học bổng và tư vấn ưu tiên đang chốt nhanh",
-    description:
-      "Cơ hội nhận tư vấn chuyên sâu, hỗ trợ hồ sơ và gợi ý ngành phù hợp đang có giới hạn theo từng đợt tuyển sinh.",
-    cta: "Đặt lịch tư vấn",
-  },
-} as const;
-
-export function getExitIntentTemplate(config: {
-  templateId?: keyof typeof templateMap;
-  badge?: string;
-  title?: string;
-  description?: string;
-  ctaLabel?: string;
-}) {
-  const selected = templateMap[config.templateId ?? "offer"] ?? templateMap.offer;
-  return {
-    badge: config.badge || selected.badge,
-    title: config.title || selected.title,
-    description: config.description || selected.description,
-    cta: config.ctaLabel || selected.cta,
-  };
-}
 
 export function ExitIntentPopup() {
   const { config } = useSiteConfig();
@@ -68,7 +18,10 @@ export function ExitIntentPopup() {
   const hasImage = Boolean(exitIntent.showImage && exitIntent.imageUrl);
   const imageOnLeft = exitIntent.imagePosition !== "right";
 
-  const template = useMemo(() => getExitIntentTemplate(exitIntent), [exitIntent]);
+  const template = useMemo(
+    () => getExitIntentTemplate(exitIntent),
+    [exitIntent],
+  );
 
   useEffect(() => {
     if (!exitIntent.enabled) {
@@ -93,7 +46,10 @@ export function ExitIntentPopup() {
 
     const triggerDelayMs = Math.max(0, exitIntent.triggerDelaySec * 1000);
     const minimumTimeMs = Math.max(0, exitIntent.minTimeOnPageSec * 1000);
-    const minimumScroll = Math.max(0, Math.min(100, exitIntent.minScrollPercent));
+    const minimumScroll = Math.max(
+      0,
+      Math.min(100, exitIntent.minScrollPercent),
+    );
 
     // Cache scroll geometry; recompute on resize instead of reading layout
     // (scrollHeight/innerHeight) on every scroll, which forces reflow.
@@ -112,7 +68,8 @@ export function ExitIntentPopup() {
       const elapsed = performance.now() - startTimeRef.current;
       const currentScroll = getScrollPercent();
       const shouldWaitForScroll = currentScroll < minimumScroll;
-      const allowedOnMobile = exitIntent.allowMobile || window.innerWidth >= 768;
+      const allowedOnMobile =
+        exitIntent.allowMobile || window.innerWidth >= 768;
       const enoughTime = elapsed >= minimumTimeMs;
       const shouldShowByTime = elapsed >= triggerDelayMs;
 
@@ -132,17 +89,24 @@ export function ExitIntentPopup() {
       }
     };
 
-    const timer = window.setTimeout(() => show("timeout"), triggerDelayMs || 1500);
-    const fallbackTimer = window.setTimeout(() => {
-      if (launcherRef.current || dismissed) return;
-      const allowedOnMobile = exitIntent.allowMobile || window.innerWidth >= 768;
-      if (!allowedOnMobile) return;
-      const elapsed = performance.now() - startTimeRef.current;
-      if (elapsed < Math.max(minimumTimeMs, 1500)) return;
-      launcherRef.current = true;
-      window.sessionStorage.setItem(EXIT_INTENT_SHOWN_KEY, "1");
-      setVisible(true);
-    }, Math.max(triggerDelayMs, minimumTimeMs, 1500));
+    const timer = window.setTimeout(
+      () => show("timeout"),
+      triggerDelayMs || 1500,
+    );
+    const fallbackTimer = window.setTimeout(
+      () => {
+        if (launcherRef.current || dismissed) return;
+        const allowedOnMobile =
+          exitIntent.allowMobile || window.innerWidth >= 768;
+        if (!allowedOnMobile) return;
+        const elapsed = performance.now() - startTimeRef.current;
+        if (elapsed < Math.max(minimumTimeMs, 1500)) return;
+        launcherRef.current = true;
+        window.sessionStorage.setItem(EXIT_INTENT_SHOWN_KEY, "1");
+        setVisible(true);
+      },
+      Math.max(triggerDelayMs, minimumTimeMs, 1500),
+    );
 
     const onMouseLeave = (event: MouseEvent) => {
       const isLeavingViewport =
@@ -194,13 +158,20 @@ export function ExitIntentPopup() {
       >
         <div
           className="overflow-hidden rounded-[1.8rem] border border-white/15 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_transparent_35%),_rgba(15,23,42,0.96)] shadow-[0_30px_90px_rgba(15,23,42,0.42)] backdrop-blur-xl"
-          style={{ animation: "exitIntentRise 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both" }}
+          style={{
+            animation:
+              "exitIntentRise 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both",
+          }}
         >
           <div className="bg-gradient-to-r from-primary via-amber-500 to-[#f59e0b] px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-white">
             {template.badge}
           </div>
 
-          <div className={hasImage ? "grid md:grid-cols-[1fr_1.2fr]" : "grid grid-cols-1"}>
+          <div
+            className={
+              hasImage ? "grid md:grid-cols-[1fr_1.2fr]" : "grid grid-cols-1"
+            }
+          >
             {hasImage && imageOnLeft && (
               <div className="relative min-h-[220px] overflow-hidden border-b border-white/10 md:border-b-0 md:border-r md:border-white/10">
                 <img

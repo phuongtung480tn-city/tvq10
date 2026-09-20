@@ -35,15 +35,15 @@ server-only và cấu hình Supabase được mô tả trong [DEPLOY_GUIDE.md](D
 
 ## Lệnh dự án
 
-| Lệnh | Mục đích |
-| --- | --- |
-| `npm run dev` | Chạy development server |
-| `npm run build` | Build production SSR |
-| `npm run build:dev` | Build bằng development mode |
-| `npm run preview` | Xem bản build local |
-| `npm run lint` | Kiểm tra ESLint |
-| `npm run format` | Format bằng Prettier |
-| `npx playwright test` | Chạy E2E tests |
+| Lệnh                  | Mục đích                    |
+| --------------------- | --------------------------- |
+| `npm run dev`         | Chạy development server     |
+| `npm run build`       | Build production SSR        |
+| `npm run build:dev`   | Build bằng development mode |
+| `npm run preview`     | Xem bản build local         |
+| `npm run lint`        | Kiểm tra ESLint             |
+| `npm run format`      | Format bằng Prettier        |
+| `npx playwright test` | Chạy E2E tests              |
 
 ## Cấu trúc mã nguồn
 

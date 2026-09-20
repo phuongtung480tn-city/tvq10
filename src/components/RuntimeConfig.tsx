@@ -356,7 +356,8 @@ export function RuntimeConfig() {
     const milestones = new Set<number>();
     // Cache scroll geometry so the scroll handler never reads layout
     // (reading scrollHeight/innerHeight on every scroll forces reflow).
-    let cachedTotal = document.documentElement.scrollHeight - window.innerHeight;
+    let cachedTotal =
+      document.documentElement.scrollHeight - window.innerHeight;
     const recomputeTotal = () => {
       cachedTotal = document.documentElement.scrollHeight - window.innerHeight;
     };

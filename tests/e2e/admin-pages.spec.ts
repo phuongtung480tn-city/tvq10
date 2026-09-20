@@ -90,7 +90,9 @@ test("exit intent popup triggers when the config is enabled and user leaves page
   });
 
   await expect(
-    page.getByRole("dialog").filter({ hasText: "Nhận tư vấn miễn phí + lộ trình học phù hợp" }),
+    page
+      .getByRole("dialog")
+      .filter({ hasText: "Nhận tư vấn miễn phí + lộ trình học phù hợp" }),
   ).toBeVisible({ timeout: 15_000 });
 });
 

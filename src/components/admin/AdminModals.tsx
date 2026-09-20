@@ -56,7 +56,7 @@ import {
 import {
   getExitIntentTemplate,
   templateMap,
-} from "@/components/ExitIntentPopup";
+} from "@/components/exit-intent-templates";
 import { buildVisitorBehaviorPayload } from "@/lib/behavior";
 
 export function AdminModals() {
@@ -76,7 +76,10 @@ function ExitIntentModal({ onClose }: ModalProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   function uploadExitImage(file: File) {
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
+    if (
+      !/^image\/(png|jpeg|webp)$/.test(file.type) ||
+      file.size > 2 * 1024 * 1024
+    ) {
       window.alert("Ảnh popup cần là PNG, JPG hoặc WebP và tối đa 2MB.");
       return;
     }
@@ -593,7 +596,9 @@ function FormModal({ onClose }: ModalProps) {
               })
               .catch((error: unknown) => {
                 setWebhookTestMessage(
-                  error instanceof Error ? error.message : "Không kiểm tra được webhook.",
+                  error instanceof Error
+                    ? error.message
+                    : "Không kiểm tra được webhook.",
                 );
               })
               .finally(() => setTestingWebhook(false));
@@ -2745,7 +2750,9 @@ function EmailModal({ onClose }: ModalProps) {
             <TextInput
               value={e.customerCtaLabel || e.ctaLabel}
               onChange={(ev) =>
-                update((d) => (d.emailAutomation.customerCtaLabel = ev.target.value))
+                update(
+                  (d) => (d.emailAutomation.customerCtaLabel = ev.target.value),
+                )
               }
               placeholder="Nhận tư vấn ngay"
             />
@@ -2757,7 +2764,9 @@ function EmailModal({ onClose }: ModalProps) {
             <TextInput
               value={e.customerCtaUrl || e.ctaUrl}
               onChange={(ev) =>
-                update((d) => (d.emailAutomation.customerCtaUrl = ev.target.value))
+                update(
+                  (d) => (d.emailAutomation.customerCtaUrl = ev.target.value),
+                )
               }
               placeholder="{landing_url}#dang-ky"
             />
@@ -2766,7 +2775,9 @@ function EmailModal({ onClose }: ModalProps) {
             <TextInput
               value={e.salesCtaLabel || "Mở lead trong CRM"}
               onChange={(ev) =>
-                update((d) => (d.emailAutomation.salesCtaLabel = ev.target.value))
+                update(
+                  (d) => (d.emailAutomation.salesCtaLabel = ev.target.value),
+                )
               }
               placeholder="Mở lead trong CRM"
             />
@@ -3407,98 +3418,104 @@ function WebhookModal({ onClose }: ModalProps) {
                       key={fieldKey}
                       className="rounded px-1 py-1 hover:bg-emerald-100"
                     >
-                    <label className="flex items-start gap-1 text-[10px] text-emerald-950">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(event) =>
-                          update((draft) => {
-                            const endpoint = draft.webhooks[i]!;
-                            const current = endpoint.fields?.length
-                              ? [...endpoint.fields]
-                              : [...DEFAULT_SHEETS_FIELDS];
-                            endpoint.fields = event.target.checked
-                              ? Array.from(new Set([...current, fieldKey]))
-                              : current.filter((key) => key !== fieldKey);
-                          })
-                        }
-                      />
-                      <span>
-                        <b>{fieldKey}</b>
-                        <br />
-                        {label}
-                      </span>
-                      {selected && (
-                        <span className="ml-auto flex shrink-0 gap-0.5">
-                          <button
-                            type="button"
-                            title="Đưa cột lên"
-                            disabled={fieldIndex <= 0}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              update((draft) => {
-                                const endpoint = draft.webhooks[i]!;
-                                const fields = endpoint.fields?.length
-                                  ? [...endpoint.fields]
-                                  : [...DEFAULT_SHEETS_FIELDS];
-                                if (fieldIndex > 0) {
-                                  [fields[fieldIndex - 1], fields[fieldIndex]] = [
-                                    fields[fieldIndex]!,
-                                    fields[fieldIndex - 1]!,
-                                  ];
-                                }
-                                endpoint.fields = fields;
-                              });
-                            }}
-                            className="rounded border px-1 disabled:opacity-30"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            title="Đưa cột xuống"
-                            disabled={fieldIndex === orderedFields.length - 1}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              update((draft) => {
-                                const endpoint = draft.webhooks[i]!;
-                                const fields = endpoint.fields?.length
-                                  ? [...endpoint.fields]
-                                  : [...DEFAULT_SHEETS_FIELDS];
-                                if (fieldIndex < fields.length - 1) {
-                                  [fields[fieldIndex], fields[fieldIndex + 1]] = [
-                                    fields[fieldIndex + 1]!,
-                                    fields[fieldIndex]!,
-                                  ];
-                                }
-                                endpoint.fields = fields;
-                              });
-                            }}
-                            className="rounded border px-1 disabled:opacity-30"
-                          >
-                            ↓
-                          </button>
+                      <label className="flex items-start gap-1 text-[10px] text-emerald-950">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(event) =>
+                            update((draft) => {
+                              const endpoint = draft.webhooks[i]!;
+                              const current = endpoint.fields?.length
+                                ? [...endpoint.fields]
+                                : [...DEFAULT_SHEETS_FIELDS];
+                              endpoint.fields = event.target.checked
+                                ? Array.from(new Set([...current, fieldKey]))
+                                : current.filter((key) => key !== fieldKey);
+                            })
+                          }
+                        />
+                        <span>
+                          <b>{fieldKey}</b>
+                          <br />
+                          {label}
                         </span>
+                        {selected && (
+                          <span className="ml-auto flex shrink-0 gap-0.5">
+                            <button
+                              type="button"
+                              title="Đưa cột lên"
+                              disabled={fieldIndex <= 0}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                update((draft) => {
+                                  const endpoint = draft.webhooks[i]!;
+                                  const fields = endpoint.fields?.length
+                                    ? [...endpoint.fields]
+                                    : [...DEFAULT_SHEETS_FIELDS];
+                                  if (fieldIndex > 0) {
+                                    [
+                                      fields[fieldIndex - 1],
+                                      fields[fieldIndex],
+                                    ] = [
+                                      fields[fieldIndex]!,
+                                      fields[fieldIndex - 1]!,
+                                    ];
+                                  }
+                                  endpoint.fields = fields;
+                                });
+                              }}
+                              className="rounded border px-1 disabled:opacity-30"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              title="Đưa cột xuống"
+                              disabled={fieldIndex === orderedFields.length - 1}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                update((draft) => {
+                                  const endpoint = draft.webhooks[i]!;
+                                  const fields = endpoint.fields?.length
+                                    ? [...endpoint.fields]
+                                    : [...DEFAULT_SHEETS_FIELDS];
+                                  if (fieldIndex < fields.length - 1) {
+                                    [
+                                      fields[fieldIndex],
+                                      fields[fieldIndex + 1],
+                                    ] = [
+                                      fields[fieldIndex + 1]!,
+                                      fields[fieldIndex]!,
+                                    ];
+                                  }
+                                  endpoint.fields = fields;
+                                });
+                              }}
+                              className="rounded border px-1 disabled:opacity-30"
+                            >
+                              ↓
+                            </button>
+                          </span>
+                        )}
+                      </label>
+                      {selected && (
+                        <input
+                          type="text"
+                          value={w.columnMap?.[fieldKey] ?? ""}
+                          placeholder={`Tên cột trong Sheet (mặc định: ${fieldKey})`}
+                          onChange={(event) =>
+                            update((draft) => {
+                              const endpoint = draft.webhooks[i]!;
+                              const map = { ...(endpoint.columnMap || {}) };
+                              const value = event.target.value;
+                              if (value.trim()) map[fieldKey] = value;
+                              else delete map[fieldKey];
+                              endpoint.columnMap = map;
+                            })
+                          }
+                          className="mt-1 w-full rounded border border-emerald-300 bg-white px-2 py-1 text-[10px] text-emerald-950 outline-none focus:border-emerald-500"
+                        />
                       )}
-                    </label>
-                    {selected && (
-                      <input
-                        type="text"
-                        value={w.columnMap?.[fieldKey] ?? ""}
-                        placeholder={`Tên cột trong Sheet (mặc định: ${fieldKey})`}
-                        onChange={(event) =>
-                          update((draft) => {
-                            const endpoint = draft.webhooks[i]!;
-                            const map = { ...(endpoint.columnMap || {}) };
-                            const value = event.target.value;
-                            if (value.trim()) map[fieldKey] = value;
-                            else delete map[fieldKey];
-                            endpoint.columnMap = map;
-                          })
-                        }
-                        className="mt-1 w-full rounded border border-emerald-300 bg-white px-2 py-1 text-[10px] text-emerald-950 outline-none focus:border-emerald-500"
-                      />
-                    )}
                     </div>
                   );
                 })}
@@ -4259,8 +4276,8 @@ function StorageModal({ onClose }: ModalProps) {
       </div>
       <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">
         Lưu cấu hình sẽ đồng bộ runtime lên Supabase. File
-        <code className="mx-1">src/config/site-config.ts</code> không thể tự
-        bị ghi từ website production. Muốn đưa cấu hình thành mặc định trong mã
+        <code className="mx-1">src/config/site-config.ts</code> không thể tự bị
+        ghi từ website production. Muốn đưa cấu hình thành mặc định trong mã
         nguồn, hãy xuất config, thay phần <code>DEFAULT_CONFIG</code> rồi commit
         và redeploy.
       </p>
@@ -4928,7 +4945,9 @@ function LandingEditorModal({ onClose }: ModalProps) {
   const heroImageInputRef = useRef<HTMLInputElement>(null);
   const heroSliderInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const galleryReplaceRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const galleryReplaceRefs = useRef<Record<number, HTMLInputElement | null>>(
+    {},
+  );
   const graduationInputRef = useRef<HTMLInputElement>(null);
   const expertInputRef = useRef<HTMLInputElement>(null);
   const [logoError, setLogoError] = useState("");
@@ -5247,7 +5266,10 @@ function LandingEditorModal({ onClose }: ModalProps) {
     );
   }
   function replaceGalleryImage(index: number, file: File) {
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
+    if (
+      !/^image\/(png|jpeg|webp)$/.test(file.type) ||
+      file.size > 2 * 1024 * 1024
+    ) {
       window.alert("Ảnh gallery cần là PNG, JPG hoặc WebP và tối đa 2MB.");
       return;
     }
@@ -5718,23 +5740,32 @@ function LandingEditorModal({ onClose }: ModalProps) {
                 if (file) {
                   const reader = new FileReader();
                   reader.onload = () => {
-                    const result = typeof reader.result === "string" ? reader.result : "";
-                    const isAllowed = /^data:image\/(png|jpeg|webp|svg\+xml)/i.test(result) || /^https?:\/\//i.test(file.name) || /^\//.test(file.name);
+                    const result =
+                      typeof reader.result === "string" ? reader.result : "";
+                    const isAllowed =
+                      /^data:image\/(png|jpeg|webp|svg\+xml)/i.test(result) ||
+                      /^https?:\/\//i.test(file.name) ||
+                      /^\//.test(file.name);
                     if (!isAllowed || !result) {
-                      setFooterLogoError("Logo phải là PNG, JPG, WebP hoặc SVG.");
+                      setFooterLogoError(
+                        "Logo phải là PNG, JPG, WebP hoặc SVG.",
+                      );
                       return;
                     }
                     update((draft) => (draft.footer.logoUrl = result));
                     setFooterLogoError("");
                   };
-                  reader.onerror = () => setFooterLogoError("Không thể đọc file logo footer.");
+                  reader.onerror = () =>
+                    setFooterLogoError("Không thể đọc file logo footer.");
                   reader.readAsDataURL(file);
                 }
                 event.target.value = "";
               }}
             />
             {footerLogoError && (
-              <p className="text-[11px] font-semibold text-red-600">{footerLogoError}</p>
+              <p className="text-[11px] font-semibold text-red-600">
+                {footerLogoError}
+              </p>
             )}
           </div>
         </div>

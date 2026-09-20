@@ -25,9 +25,7 @@ export const relayWebhook = createServerFn({ method: "POST" })
 
     try {
       const rawBody =
-        typeof data.body === "string"
-          ? data.body
-          : JSON.stringify(data.body);
+        typeof data.body === "string" ? data.body : JSON.stringify(data.body);
       const headers = {
         "Content-Type": "application/json",
         ...data.headers,

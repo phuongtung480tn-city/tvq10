@@ -1,23 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import heroImg from "@/assets/hero-student.webp";
 import expert1 from "@/assets/expert-1.webp";
 import expert2 from "@/assets/expert-2.webp";
 import expert3 from "@/assets/expert-3.webp";
-import { LeadForm, MAJORS } from "@/components/LeadForm";
+import { heroResponsive, galleryResponsive } from "@/lib/responsive-assets";
+import { MAJORS } from "@/components/LeadForm";
 import { Reveal } from "@/components/Reveal";
 import { ScarcityBar } from "@/components/ScarcityBar";
-import { RecentLeadPopup } from "@/components/RecentLeadPopup";
-import { ExitIntentPopup } from "@/components/ExitIntentPopup";
-import { PhotoCarousel } from "@/components/PhotoCarousel";
-import { StickyMobileCTA } from "@/components/StickyMobileCTA";
-import { FloatingContact } from "@/components/FloatingContact";
 import { useSiteConfig } from "@/lib/use-site-config";
 import { getVariant } from "@/lib/ab";
 import { contactLinks } from "@/lib/contact-links";
-import { FooterStats } from "@/components/FooterStats";
 import { SiteMenu } from "@/components/SiteMenu";
-import { ContentSection } from "@/components/ContentSection";
 import { initBehavior, markFaqClick } from "@/lib/behavior";
 import visaImg from "@/assets/gallery-visa.webp";
 import campusImg from "@/assets/gallery-campus.webp";
@@ -26,6 +20,47 @@ import airportImg from "@/assets/gallery-airport.webp";
 import { Toaster } from "@/components/ui/sonner";
 import { FOOTER } from "@/lib/config";
 import { GraduationCap, Menu, X } from "lucide-react";
+
+const LeadForm = lazy(() =>
+  import("@/components/LeadForm").then((module) => ({
+    default: module.LeadForm,
+  })),
+);
+const PhotoCarousel = lazy(() =>
+  import("@/components/PhotoCarousel").then((module) => ({
+    default: module.PhotoCarousel,
+  })),
+);
+const RecentLeadPopup = lazy(() =>
+  import("@/components/RecentLeadPopup").then((module) => ({
+    default: module.RecentLeadPopup,
+  })),
+);
+const ExitIntentPopup = lazy(() =>
+  import("@/components/ExitIntentPopup").then((module) => ({
+    default: module.ExitIntentPopup,
+  })),
+);
+const FloatingContact = lazy(() =>
+  import("@/components/FloatingContact").then((module) => ({
+    default: module.FloatingContact,
+  })),
+);
+const StickyMobileCTA = lazy(() =>
+  import("@/components/StickyMobileCTA").then((module) => ({
+    default: module.StickyMobileCTA,
+  })),
+);
+const FooterStats = lazy(() =>
+  import("@/components/FooterStats").then((module) => ({
+    default: module.FooterStats,
+  })),
+);
+const ContentSection = lazy(() =>
+  import("@/components/ContentSection").then((module) => ({
+    default: module.ContentSection,
+  })),
+);
 
 const TITLE = "Du Học Nghề Trung Quốc 0Đ | Vừa Học Vừa Làm Lương 15-30 Triệu";
 const SITE_URL = (import.meta.env["VITE_SITE_URL"] || "https://tvq4.vercel.app")
@@ -160,18 +195,21 @@ const STEPS = [
 
 const GALLERY = [
   {
-    img: visaImg,
+    img: galleryResponsive.visa.fallbackSrc,
     caption: "Visa du học sinh đã được cấp cho học viên khóa gần nhất",
   },
   {
-    img: campusImg,
+    img: galleryResponsive.campus.fallbackSrc,
     caption: "Khuôn viên trường Cao đẳng nghề đối tác tại Trung Quốc",
   },
   {
-    img: dormRoomImg,
+    img: galleryResponsive.dormRoom.fallbackSrc,
     caption: "Phòng ký túc xá trong trường — miễn 100% phí ở",
   },
-  { img: airportImg, caption: "Học viên lên đ��ờng nhập học kỳ tháng 9" },
+  {
+    img: galleryResponsive.airport.fallbackSrc,
+    caption: "Học viên lên đường nhập học kỳ tháng 9",
+  },
 ];
 
 const EXPERTS = [
@@ -207,6 +245,11 @@ const STATS = [
   { v: "8", l: "Ngành công nghệ đang khát nhân lực" },
   { v: "0Đ", l: "Học phí trong toàn bộ khóa học" },
 ];
+
+const SECTION_RENDER_HINT = {
+  contentVisibility: "auto" as const,
+  containIntrinsicSize: "1000px 700px" as const,
+};
 
 const TESTIMONIALS = [
   {
@@ -432,27 +475,38 @@ function Landing() {
 
       {/* Hero */}
       <section
-        style={sectionStyle("hero")}
+        style={{ ...sectionStyle("hero"), ...SECTION_RENDER_HINT }}
         className="surface-panel relative overflow-hidden"
       >
         <div className="absolute inset-0">
           {heroSlides.map((slide, index) => (
-            <img
-              key={`${slide}-${index}`}
-              src={slide || heroImg}
-              alt="Học viên Việt Nam thực hành lắp ráp ô tô điện tại trung tâm đào tạo nghề Trung Quốc"
-              width={1600}
-              height={1104}
-              fetchPriority={index === 0 ? "high" : undefined}
-              decoding="async"
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-                content.heroMediaMode === "slider"
-                  ? index === heroSlideIndex
-                    ? "opacity-30"
-                    : "opacity-0"
-                  : "opacity-25"
-              }`}
-            />
+            <picture key={`${slide}-${index}`} className="absolute inset-0">
+              <source
+                type="image/avif"
+                srcSet={heroResponsive.avifSrcSet}
+                sizes={heroResponsive.sizes}
+              />
+              <source
+                type="image/webp"
+                srcSet={heroResponsive.srcSet}
+                sizes={heroResponsive.sizes}
+              />
+              <img
+                src={slide || heroImg}
+                alt="Học viên Việt Nam thực hành lắp ráp ô tô điện tại trung tâm đào tạo nghề Trung Quốc"
+                width={1600}
+                height={1104}
+                fetchPriority={index === 0 ? "high" : undefined}
+                decoding="async"
+                className={`h-full w-full object-cover transition-opacity duration-700 ${
+                  content.heroMediaMode === "slider"
+                    ? index === heroSlideIndex
+                      ? "opacity-30"
+                      : "opacity-0"
+                    : "opacity-25"
+                }`}
+              />
+            </picture>
           ))}
         </div>
         <div className="absolute inset-0 bg-surface/68" />
@@ -499,7 +553,13 @@ function Landing() {
           </div>
           <div className="space-y-3 lg:pl-4">
             <ScarcityBar tone="dark" />
-            <LeadForm />
+            <Suspense
+              fallback={
+                <div className="h-[420px] animate-pulse rounded-2xl border border-border bg-card/60" />
+              }
+            >
+              <LeadForm />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -521,7 +581,7 @@ function Landing() {
 
       {/* Stats */}
       <section
-        style={sectionStyle("stats")}
+        style={{ ...sectionStyle("stats"), ...SECTION_RENDER_HINT }}
         className="border-b border-border bg-muted/50 py-10"
       >
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 lg:grid-cols-4">
@@ -542,7 +602,7 @@ function Landing() {
 
       {/* Pain */}
       <section
-        style={sectionStyle("pains")}
+        style={{ ...sectionStyle("pains"), ...SECTION_RENDER_HINT }}
         className="mx-auto max-w-6xl px-4 py-16 sm:py-20"
       >
         <h2 className="max-w-2xl text-2xl font-extrabold sm:text-3xl lg:text-4xl">
@@ -562,7 +622,7 @@ function Landing() {
 
       {/* Benefits */}
       <section
-        style={sectionStyle("benefits")}
+        style={{ ...sectionStyle("benefits"), ...SECTION_RENDER_HINT }}
         data-section="luong_thuc_tap"
         className="bg-muted/60 py-16 sm:py-20"
       >
@@ -588,7 +648,7 @@ function Landing() {
 
       {/* Majors */}
       <section
-        style={sectionStyle("majors")}
+        style={{ ...sectionStyle("majors"), ...SECTION_RENDER_HINT }}
         data-section="nganh_hoc"
         className="mx-auto max-w-6xl px-4 py-16 sm:py-20"
       >
@@ -615,7 +675,7 @@ function Landing() {
 
       {/* Experts */}
       <section
-        style={sectionStyle("experts")}
+        style={{ ...sectionStyle("experts"), ...SECTION_RENDER_HINT }}
         className="bg-muted/50 py-16 sm:py-20"
       >
         <div className="mx-auto max-w-6xl px-4">
@@ -659,7 +719,7 @@ function Landing() {
 
       {/* Gallery carousel — original visa/campus/dorm slider */}
       <section
-        style={sectionStyle("gallery")}
+        style={{ ...sectionStyle("gallery"), ...SECTION_RENDER_HINT }}
         className="mx-auto max-w-3xl px-4 py-16 sm:py-20"
       >
         <h2 className="text-2xl font-extrabold sm:text-3xl lg:text-4xl">
@@ -670,7 +730,13 @@ function Landing() {
         </p>
         <Reveal>
           <div className="mt-8">
-            <PhotoCarousel slides={gallerySlides} />
+            <Suspense
+              fallback={
+                <div className="h-[320px] animate-pulse rounded-2xl border border-border bg-muted/50" />
+              }
+            >
+              <PhotoCarousel slides={gallerySlides} />
+            </Suspense>
           </div>
         </Reveal>
       </section>
@@ -690,7 +756,13 @@ function Landing() {
           </p>
           <Reveal>
             <div className="mt-6">
-              <PhotoCarousel slides={slider.slides} />
+              <Suspense
+                fallback={
+                  <div className="h-[240px] animate-pulse rounded-2xl border border-border bg-muted/50" />
+                }
+              >
+                <PhotoCarousel slides={slider.slides} />
+              </Suspense>
             </div>
           </Reveal>
         </section>
@@ -698,7 +770,7 @@ function Landing() {
 
       {/* Testimonials */}
       <section
-        style={sectionStyle("testimonials")}
+        style={{ ...sectionStyle("testimonials"), ...SECTION_RENDER_HINT }}
         className="mx-auto max-w-6xl px-4 py-16 sm:py-20"
       >
         <h2 className="text-2xl font-extrabold sm:text-3xl lg:text-4xl">
@@ -736,7 +808,7 @@ function Landing() {
 
       {/* Steps */}
       <section
-        style={sectionStyle("steps")}
+        style={{ ...sectionStyle("steps"), ...SECTION_RENDER_HINT }}
         className="surface-panel py-16 text-surface-foreground sm:py-20"
       >
         <div className="mx-auto max-w-6xl px-4">
@@ -761,7 +833,7 @@ function Landing() {
 
       {/* Final CTA */}
       <section
-        style={sectionStyle("finalCta")}
+        style={{ ...sectionStyle("finalCta"), ...SECTION_RENDER_HINT }}
         className="bg-muted/60 py-16 sm:py-20"
       >
         <div className="mx-auto max-w-3xl px-4">
@@ -773,14 +845,26 @@ function Landing() {
           </p>
           <div className="mt-8 space-y-3">
             <ScarcityBar />
-            <LeadForm id="dang-ky-cuoi" />
+            <Suspense
+              fallback={
+                <div className="h-[420px] animate-pulse rounded-2xl border border-border bg-card/60" />
+              }
+            >
+              <LeadForm id="dang-ky-cuoi" />
+            </Suspense>
           </div>
         </div>
       </section>
 
       {homeCustomSections.map((item) => (
         <div key={item.id} style={{ order: (item.order + 1) * 10 + 5 }}>
-          <ContentSection section={item} />
+          <Suspense
+            fallback={
+              <div className="h-32 animate-pulse rounded-2xl border border-border bg-muted/40" />
+            }
+          >
+            <ContentSection section={item} />
+          </Suspense>
         </div>
       ))}
 
@@ -826,7 +910,13 @@ function Landing() {
 
       {offerSection && (
         <div style={{ order: 970 }}>
-          <ContentSection section={offerSection} />
+          <Suspense
+            fallback={
+              <div className="h-32 animate-pulse rounded-2xl border border-border bg-muted/40" />
+            }
+          >
+            <ContentSection section={offerSection} />
+          </Suspense>
         </div>
       )}
 
@@ -836,6 +926,7 @@ function Landing() {
         style={{
           order: 980,
           display: section("faq")?.enabled === false ? "none" : undefined,
+          ...SECTION_RENDER_HINT,
         }}
         className="mx-auto max-w-3xl px-4 py-16 sm:py-20"
       >
@@ -957,14 +1048,22 @@ function Landing() {
         </div>
       </footer>
 
-      <RecentLeadPopup />
-      <ExitIntentPopup />
+      <Suspense fallback={null}>
+        <RecentLeadPopup />
+      </Suspense>
+      <Suspense fallback={null}>
+        <ExitIntentPopup />
+      </Suspense>
 
       {/* Nút liên hệ nổi — đọc từ cấu hình Admin */}
-      <FloatingContact />
+      <Suspense fallback={null}>
+        <FloatingContact />
+      </Suspense>
 
       {/* Mobile sticky CTA (2 nút, hiện sau khi cuộn qua hero) */}
-      <StickyMobileCTA />
+      <Suspense fallback={null}>
+        <StickyMobileCTA />
+      </Suspense>
       <div className="h-20 sm:hidden" style={{ order: 1000 }} />
     </div>
   );

@@ -862,8 +862,7 @@ export function initVisitorTracking(options: VisitorTrackingInitOptions = {}) {
   };
   // Cache scroll geometry; recompute on resize instead of reading layout
   // (scrollHeight/innerHeight) on every scroll, which forces reflow.
-  let cachedTotal =
-    document.documentElement.scrollHeight - window.innerHeight;
+  let cachedTotal = document.documentElement.scrollHeight - window.innerHeight;
   const recomputeTotal = () => {
     cachedTotal = document.documentElement.scrollHeight - window.innerHeight;
   };

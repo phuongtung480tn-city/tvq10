@@ -10,13 +10,15 @@ const countdownTemplates = {
     cell: "bg-primary/10 text-primary",
   },
   premium: {
-    shell: "bg-gradient-to-br from-amber-50 via-white to-orange-50 text-neutral-900 ring-amber-200",
+    shell:
+      "bg-gradient-to-br from-amber-50 via-white to-orange-50 text-neutral-900 ring-amber-200",
     badge: "bg-amber-500 text-white",
     accent: "text-amber-600",
     cell: "bg-amber-100 text-amber-900",
   },
   urgent: {
-    shell: "bg-gradient-to-br from-red-50 via-white to-rose-50 text-red-950 ring-red-200",
+    shell:
+      "bg-gradient-to-br from-red-50 via-white to-rose-50 text-red-950 ring-red-200",
     badge: "bg-red-600 text-white",
     accent: "text-red-600",
     cell: "bg-red-100 text-red-700",
@@ -75,19 +77,15 @@ export function ScarcityBar({ tone = "light" }: { tone?: "light" | "dark" }) {
   if (!c.enabled) return null;
 
   const templateKey = c.template || "classic";
-  const selectedTemplate = countdownTemplates[templateKey] ?? countdownTemplates.classic;
+  const selectedTemplate =
+    countdownTemplates[templateKey] ?? countdownTemplates.classic;
   const dark = tone === "dark";
-  const box = dark
-    ? selectedTemplate.shell
-    : selectedTemplate.shell;
+  const box = dark ? selectedTemplate.shell : selectedTemplate.shell;
   const accent = dark ? selectedTemplate.accent : selectedTemplate.accent;
   const cell = dark ? selectedTemplate.cell : selectedTemplate.cell;
 
   return (
-    <div
-      className={`rounded-2xl px-4 py-3 ring-1 ${box}`}
-      aria-live="polite"
-    >
+    <div className={`rounded-2xl px-4 py-3 ring-1 ${box}`} aria-live="polite">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-bold">
           Chỉ còn{" "}
@@ -96,7 +94,9 @@ export function ScarcityBar({ tone = "light" }: { tone?: "light" | "dark" }) {
           </span>{" "}
           {c.headline}
         </p>
-        <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${selectedTemplate.badge}`}>
+        <span
+          className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${selectedTemplate.badge}`}
+        >
           ưu tiên
         </span>
       </div>

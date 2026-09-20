@@ -2,7 +2,7 @@ const SHEET_NAME = "Leads";
 const DEDUPE_PREFIX = "tvq10_lead_";
 
 function removeLegacyTriggers() {
-  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
     var handler = trigger.getHandlerFunction();
     if (
       handler === "autoRemoveEmptyRows" ||
@@ -51,66 +51,139 @@ function doPost(event) {
     var result = writePayload(payload);
     var properties = PropertiesService.getScriptProperties();
     properties.setProperty("tvq10_last_received_at", new Date().toISOString());
-    properties.setProperty("tvq10_last_delivery_id", String(payload.webhook_delivery_id || payload.idempotency_key || ""));
+    properties.setProperty(
+      "tvq10_last_delivery_id",
+      String(payload.webhook_delivery_id || payload.idempotency_key || ""),
+    );
     properties.deleteProperty("tvq10_last_error");
     return jsonResponse(result);
   } catch (error) {
-    PropertiesService.getScriptProperties().setProperty("tvq10_last_error", String(error && error.message ? error.message : error));
-    return jsonResponse({ ok: false, error: String(error && error.message ? error.message : error) }, 500);
+    PropertiesService.getScriptProperties().setProperty(
+      "tvq10_last_error",
+      String(error && error.message ? error.message : error),
+    );
+    return jsonResponse(
+      {
+        ok: false,
+        error: String(error && error.message ? error.message : error),
+      },
+      500,
+    );
   }
 }
 
 function writePayload(payload) {
-  const idempotencyKey = String(payload.idempotency_key || payload.webhook_delivery_id || "").trim();
+  const idempotencyKey = String(
+    payload.idempotency_key || payload.webhook_delivery_id || "",
+  ).trim();
   const selectedFields = Array.isArray(payload.sheet_fields)
     ? payload.sheet_fields.map(String).filter(Boolean)
     : null;
   // Ánh xạ biến payload -> tên cột trong Sheet. Website gửi kèm "sheet_columns".
-  const columnMap = (payload.sheet_columns && typeof payload.sheet_columns === "object" && !Array.isArray(payload.sheet_columns))
-    ? payload.sheet_columns
-    : {};
+  const columnMap =
+    payload.sheet_columns &&
+    typeof payload.sheet_columns === "object" &&
+    !Array.isArray(payload.sheet_columns)
+      ? payload.sheet_columns
+      : {};
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     const properties = PropertiesService.getScriptProperties();
-    if (idempotencyKey && properties.getProperty(DEDUPE_PREFIX + idempotencyKey)) {
+    if (
+      idempotencyKey &&
+      properties.getProperty(DEDUPE_PREFIX + idempotencyKey)
+    ) {
       return { ok: true, duplicate: true, idempotency_key: idempotencyKey };
     }
 
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     if (!spreadsheet) throw new Error("Script chưa được gắn với Google Sheet");
-    const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
+    const sheet =
+      spreadsheet.getSheetByName(SHEET_NAME) ||
+      spreadsheet.insertSheet(SHEET_NAME);
     const allHeaders = [
-      "received_at", "event", "webhook_delivery_id", "idempotency_key",
-      "created_at", "full_name", "phone", "email", "city", "major", "source",
-      "landing_url", "ab_variant", "ai_score", "ai_rank", "risk_level",
-      "risk_reasons", "recommended_action", "sale_advice", "behavior_summary",
-      "device_tech_info", "traffic_ads_source", "visits_today", "visits_month",
-      "current_session", "device_manufacturer", "device_family", "device_model_name",
-      "operating_system", "browser", "network_provider", "network_label",
-      "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-      "ttclid", "fbclid", "gclid", "referrer", "attribution_model",
-      "attribution_detected_by", "raw_query", "utm_params", "raw_payload"
+      "received_at",
+      "event",
+      "webhook_delivery_id",
+      "idempotency_key",
+      "created_at",
+      "full_name",
+      "phone",
+      "email",
+      "city",
+      "major",
+      "source",
+      "landing_url",
+      "ab_variant",
+      "ai_score",
+      "ai_rank",
+      "risk_level",
+      "risk_reasons",
+      "recommended_action",
+      "sale_advice",
+      "behavior_summary",
+      "device_tech_info",
+      "traffic_ads_source",
+      "visits_today",
+      "visits_month",
+      "current_session",
+      "device_manufacturer",
+      "device_family",
+      "device_model_name",
+      "operating_system",
+      "browser",
+      "network_provider",
+      "network_label",
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_content",
+      "utm_term",
+      "ttclid",
+      "fbclid",
+      "gclid",
+      "referrer",
+      "attribution_model",
+      "attribution_detected_by",
+      "raw_query",
+      "utm_params",
+      "raw_payload",
     ];
     // sourceFields: khóa payload dùng để lấy giá trị (giữ thứ tự Admin chọn).
     const sourceFields = selectedFields
-      ? ["received_at"].concat(selectedFields.filter(function(field) {
-          return allHeaders.indexOf(field) >= 0 && field !== "received_at" && field !== "raw_payload";
-        })).concat(["raw_payload"])
+      ? ["received_at"]
+          .concat(
+            selectedFields.filter(function (field) {
+              return (
+                allHeaders.indexOf(field) >= 0 &&
+                field !== "received_at" &&
+                field !== "raw_payload"
+              );
+            }),
+          )
+          .concat(["raw_payload"])
       : allHeaders;
     // headers: tiêu đề cột hiển thị trong Sheet (theo columnMap nếu có).
-    const headers = sourceFields.map(function(field) {
+    const headers = sourceFields.map(function (field) {
       var mapped = columnMap[field];
-      return (typeof mapped === "string" && mapped.trim()) ? mapped.trim() : field;
+      return typeof mapped === "string" && mapped.trim()
+        ? mapped.trim()
+        : field;
     });
     ensureHeaders(sheet, headers);
-    sheet.appendRow(sourceFields.map(function(field) {
-      if (field === "received_at") return new Date();
-      if (field === "raw_payload") return JSON.stringify(payload);
-      return valueForSheet(payload[field]);
-    }));
+    sheet.appendRow(
+      sourceFields.map(function (field) {
+        if (field === "received_at") return new Date();
+        if (field === "raw_payload") return JSON.stringify(payload);
+        return valueForSheet(payload[field]);
+      }),
+    );
     if (idempotencyKey) {
-      properties.setProperty(DEDUPE_PREFIX + idempotencyKey, new Date().toISOString());
+      properties.setProperty(
+        DEDUPE_PREFIX + idempotencyKey,
+        new Date().toISOString(),
+      );
     }
     return { ok: true, duplicate: false, idempotency_key: idempotencyKey };
   } finally {
@@ -142,7 +215,7 @@ function ensureHeaders(sheet, headers) {
     return;
   }
   const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-  const matches = headers.every(function(header, index) {
+  const matches = headers.every(function (header, index) {
     return current[index] === header;
   });
   if (!matches) {
@@ -158,7 +231,7 @@ function valueForSheet(value) {
 }
 
 function jsonResponse(body, status) {
-  return ContentService
-    .createTextOutput(JSON.stringify(body))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(
+    ContentService.MimeType.JSON,
+  );
 }

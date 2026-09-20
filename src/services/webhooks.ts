@@ -32,13 +32,18 @@ export function selectSalesRecipient({
   if (available.length === 0) return "";
 
   if (mode === "weighted_percent") {
-    const entries = available.map((email) => [
-      email,
-      Number(weights[email] ?? 100 / available.length),
-    ] as const);
-    const total = entries.reduce((sum, [, weight]) => sum + (Number(weight) || 0), 0);
+    const entries = available.map(
+      (email) =>
+        [email, Number(weights[email] ?? 100 / available.length)] as const,
+    );
+    const total = entries.reduce(
+      (sum, [, weight]) => sum + (Number(weight) || 0),
+      0,
+    );
     if (total <= 0) return available[0] || "";
-    const pivot = (Math.abs(hashString(leadKey || date || available.join("|"))) % total) + 1;
+    const pivot =
+      (Math.abs(hashString(leadKey || date || available.join("|"))) % total) +
+      1;
     let cursor = 0;
     for (const [email, weight] of entries) {
       cursor += Number(weight) || 0;
@@ -66,7 +71,9 @@ function hashString(value: string): number {
 }
 
 export function buildSheetsRequest(payload: Record<string, unknown>) {
-  const encoded = new URLSearchParams({ payload: JSON.stringify(payload) }).toString();
+  const encoded = new URLSearchParams({
+    payload: JSON.stringify(payload),
+  }).toString();
   return {
     body: encoded,
     contentType: "application/x-www-form-urlencoded;charset=UTF-8",
@@ -212,9 +219,7 @@ async function postOne(
       );
       const filtered = hasFields
         ? Object.fromEntries(
-            Object.entries(payload).filter(([key]) =>
-              ep.fields?.includes(key),
-            ),
+            Object.entries(payload).filter(([key]) => ep.fields?.includes(key)),
           )
         : payload;
       body = {
@@ -247,7 +252,9 @@ async function postOne(
     if (ep.type === "sheets") {
       try {
         const request = buildSheetsRequest(
-          typeof body === "object" && body !== null ? (body as Record<string, unknown>) : { payload: body },
+          typeof body === "object" && body !== null
+            ? (body as Record<string, unknown>)
+            : { payload: body },
         );
         const relay = await Promise.race([
           relayWebhook({
@@ -257,7 +264,9 @@ async function postOne(
               headers: { "Content-Type": request.contentType },
             },
           }),
-          new Promise<null>((resolve) => window.setTimeout(() => resolve(null), TIMEOUT_MS)),
+          new Promise<null>((resolve) =>
+            window.setTimeout(() => resolve(null), TIMEOUT_MS),
+          ),
         ]);
         if (relay) {
           return {
@@ -280,7 +289,10 @@ async function postOne(
           label: ep.label || ep.type,
           ok: false,
           attempts: 1,
-          detail: error instanceof Error ? error.message : "Direct Sheets request failed",
+          detail:
+            error instanceof Error
+              ? error.message
+              : "Direct Sheets request failed",
         };
       }
     }

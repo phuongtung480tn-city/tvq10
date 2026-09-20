@@ -31,7 +31,8 @@ Object.defineProperty(import.meta, "env", {
 });
 
 const { DEFAULT_CONFIG } = await import("../src/config/site-config.ts");
-const { loadConfig, saveConfig } = await import("../src/services/dataAdapter.ts");
+const { loadConfig, saveConfig } =
+  await import("../src/services/dataAdapter.ts");
 
 test("loadConfig keeps local storage mode when the user has selected local save", () => {
   const saved = {
@@ -127,7 +128,8 @@ test("syncLeadsToSupabase reports local saved and cloud synced statuses", async 
 
   globalThis.fetch = async () => ({ ok: true }) as Response;
 
-  const { syncLeadsToSupabase } = await import("../src/services/dataAdapter.ts");
+  const { syncLeadsToSupabase } =
+    await import("../src/services/dataAdapter.ts");
   const result = await syncLeadsToSupabase({
     ...DEFAULT_CONFIG,
     admin: {
@@ -149,7 +151,11 @@ test("decrementCountdownWithServiceRole creates a countdown row when config is m
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
-    calls.push({ method, url, body: init?.body ? String(init.body) : undefined });
+    calls.push({
+      method,
+      url,
+      body: init?.body ? String(init.body) : undefined,
+    });
 
     if (url.includes("/rest/v1/funnel_configs?id=eq.1&select=data")) {
       return {
@@ -162,12 +168,14 @@ test("decrementCountdownWithServiceRole creates a countdown row when config is m
       return { ok: true } as Response;
     }
 
-    return { ok: true, json: async () => ({ access_token: "token" }) } as Response;
+    return {
+      ok: true,
+      json: async () => ({ access_token: "token" }),
+    } as Response;
   };
 
-  const { decrementCountdownWithServiceRole } = await import(
-    "../src/services/config.functions.ts"
-  );
+  const { decrementCountdownWithServiceRole } =
+    await import("../src/services/config.functions.ts");
 
   const result = await decrementCountdownWithServiceRole({
     data: { url: "https://example.supabase.co" },
@@ -179,7 +187,7 @@ test("decrementCountdownWithServiceRole creates a countdown row when config is m
       (call) =>
         call.method === "PATCH" &&
         call.url.includes("/rest/v1/funnel_configs?id=eq.1") &&
-        String(call.body ?? "").includes("\"slotsLeft\":11"),
+        String(call.body ?? "").includes('"slotsLeft":11'),
     ),
   );
 });
@@ -199,7 +207,11 @@ test("selectSalesRecipient follows weighted and round robin formulas", async () 
   const weightedChoice = selectSalesRecipient({
     recipients,
     mode: "weighted_percent",
-    weights: { "sale1@test.com": 60, "sale2@test.com": 30, "sale3@test.com": 10 },
+    weights: {
+      "sale1@test.com": 60,
+      "sale2@test.com": 30,
+      "sale3@test.com": 10,
+    },
     leadKey: "weighted-lead",
   });
   assert.equal(weightedChoice, "sale1@test.com");
@@ -224,5 +236,8 @@ test("sheets webhook payload is encoded as form payload for Apps Script", async 
 
   assert.match(request.body, /payload=/);
   assert.match(request.body, /Nguyễn Văn A/);
-  assert.equal(request.contentType, "application/x-www-form-urlencoded;charset=UTF-8");
+  assert.equal(
+    request.contentType,
+    "application/x-www-form-urlencoded;charset=UTF-8",
+  );
 });

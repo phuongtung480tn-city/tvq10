@@ -13,10 +13,7 @@ import { getVariant, utmSource } from "@/lib/ab";
 import { getUtmPayload } from "@/lib/utm-hub";
 import { UtmHiddenFields } from "@/components/UtmHiddenFields";
 import { useSiteConfig } from "@/lib/use-site-config";
-import {
-  dispatchLead,
-  selectSalesRecipient,
-} from "@/services/webhooks";
+import { dispatchLead, selectSalesRecipient } from "@/services/webhooks";
 import {
   isDuplicateLead,
   isDuplicateLeadRemote,
@@ -405,7 +402,9 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
         webhookDeliveryFailed = true;
         const failed = delivery.results
           .filter((result) => !result.ok)
-          .map((result) => `${result.label}: ${result.detail || "không rõ lỗi"}`)
+          .map(
+            (result) => `${result.label}: ${result.detail || "không rõ lỗi"}`,
+          )
           .join("; ");
         console.warn(
           `Lead saved, but webhook delivery was partial/failed: ${failed || "không có endpoint thành công"}`,
@@ -438,206 +437,225 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
       // Toàn bộ khối này không được phép làm hỏng luồng submit chính: lỗi cấu
       // hình email (vd. thiếu/sai From) chỉ nên cảnh báo, không throw ra ngoài.
       try {
-      if (config.emailAutomation.enabled) {
-        type EmailTaskResult = { sent: boolean; reason?: string; detail?: string };
-        const safeSendLeadEmail = (
-          args: Parameters<typeof sendLeadEmail>[0],
-        ): Promise<EmailTaskResult> =>
-          sendLeadEmail(args).catch((err) => ({
-            sent: false,
-            reason: "unexpected_error",
-            detail: err instanceof Error ? err.message : String(err),
-          }));
-        const emailTasks: Promise<EmailTaskResult>[] = [];
-        const escapeHtml = (value: string) =>
-          value
-            .replaceAll("&", "&amp;")
-            .replaceAll("<", "&lt;")
-            .replaceAll(">", "&gt;")
-            .replaceAll('"', "&quot;")
-            .replaceAll("'", "&#39;");
-        const templateValues: Record<string, string> = {
-          name: payload.full_name,
-          phone: payload.phone,
-          city: payload.city || "",
-          major: form.major || "",
-          source: source || "direct",
-          ai_score: String(aiScore),
-          timestamp: new Date().toLocaleString("vi-VN"),
-          landing_url: payload.landing_url,
-        };
-        const fill = (s: string) =>
-          s.replace(/\{(\w+)\}/g, (_, key: string) => templateValues[key] ?? "");
-        const resolveCtaUrl = (template: string) => {
-          const filled = fill(template.trim());
-          if (!filled) return payload.landing_url;
-          try {
-            return new URL(filled, payload.landing_url).toString();
-          } catch {
-            return payload.landing_url;
-          }
-        };
-        const brandName =
-          config.emailAutomation.brandName?.trim() ||
-          config.emailAutomation.headerText?.trim() ||
-          "Funnel Builder";
-        const brandLogo = config.emailAutomation.brandLogoUrl?.trim();
-        const htmlBody = (s: string, type: "customer" | "sales") => {
-          const ctaLabel =
-            (type === "customer"
-              ? config.emailAutomation.customerCtaLabel
-              : config.emailAutomation.salesCtaLabel)?.trim() ||
-            config.emailAutomation.ctaLabel?.trim() ||
-            (type === "customer" ? "Nhận tư vấn ngay" : "Mở lead trong CRM");
-          const ctaUrl = resolveCtaUrl(
-            type === "customer"
-              ? config.emailAutomation.customerCtaUrl || config.emailAutomation.ctaUrl
-              : config.emailAutomation.salesCtaUrl || config.emailAutomation.ctaUrl,
-          );
-          const bodyHtml = s
-            .replaceAll("\n", "<br />")
-            .replace(/\{(\w+)\}/g, (_, key: string) => {
-              const value = escapeHtml(templateValues[key] || "—");
-              return ["name", "phone"].includes(key)
-                ? `<strong>${value}</strong>`
-                : value;
-            });
-          const brandMarkup = brandLogo
-            ? `<img src="${escapeHtml(brandLogo)}" alt="${escapeHtml(brandName)}" style="display:block;width:52px;height:52px;border-radius:14px;object-fit:cover;border:1px solid rgba(148,163,184,0.35);background:#fff;" />`
-            : "";
-          return `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;padding:28px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;color:#0f172a;line-height:1.7"><div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #e2e8f0;margin-bottom:16px;">${brandMarkup}<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;font-weight:700;">${escapeHtml(brandName)}</div></div>${bodyHtml}<div style="margin-top:18px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;"><a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;">${escapeHtml(ctaLabel)}</a></div></div>`;
-        };
-        const parseSalesList = (value: string) =>
-          value
-            .split(/[;,\n]/)
-            .map((item) => item.trim())
-            .filter(Boolean);
+        if (config.emailAutomation.enabled) {
+          type EmailTaskResult = {
+            sent: boolean;
+            reason?: string;
+            detail?: string;
+          };
+          const safeSendLeadEmail = (
+            args: Parameters<typeof sendLeadEmail>[0],
+          ): Promise<EmailTaskResult> =>
+            sendLeadEmail(args).catch((err) => ({
+              sent: false,
+              reason: "unexpected_error",
+              detail: err instanceof Error ? err.message : String(err),
+            }));
+          const emailTasks: Promise<EmailTaskResult>[] = [];
+          const escapeHtml = (value: string) =>
+            value
+              .replaceAll("&", "&amp;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;")
+              .replaceAll('"', "&quot;")
+              .replaceAll("'", "&#39;");
+          const templateValues: Record<string, string> = {
+            name: payload.full_name,
+            phone: payload.phone,
+            city: payload.city || "",
+            major: form.major || "",
+            source: source || "direct",
+            ai_score: String(aiScore),
+            timestamp: new Date().toLocaleString("vi-VN"),
+            landing_url: payload.landing_url,
+          };
+          const fill = (s: string) =>
+            s.replace(
+              /\{(\w+)\}/g,
+              (_, key: string) => templateValues[key] ?? "",
+            );
+          const resolveCtaUrl = (template: string) => {
+            const filled = fill(template.trim());
+            if (!filled) return payload.landing_url;
+            try {
+              return new URL(filled, payload.landing_url).toString();
+            } catch {
+              return payload.landing_url;
+            }
+          };
+          const brandName =
+            config.emailAutomation.brandName?.trim() ||
+            config.emailAutomation.headerText?.trim() ||
+            "Funnel Builder";
+          const brandLogo = config.emailAutomation.brandLogoUrl?.trim();
+          const htmlBody = (s: string, type: "customer" | "sales") => {
+            const ctaLabel =
+              (type === "customer"
+                ? config.emailAutomation.customerCtaLabel
+                : config.emailAutomation.salesCtaLabel
+              )?.trim() ||
+              config.emailAutomation.ctaLabel?.trim() ||
+              (type === "customer" ? "Nhận tư vấn ngay" : "Mở lead trong CRM");
+            const ctaUrl = resolveCtaUrl(
+              type === "customer"
+                ? config.emailAutomation.customerCtaUrl ||
+                    config.emailAutomation.ctaUrl
+                : config.emailAutomation.salesCtaUrl ||
+                    config.emailAutomation.ctaUrl,
+            );
+            const bodyHtml = s
+              .replaceAll("\n", "<br />")
+              .replace(/\{(\w+)\}/g, (_, key: string) => {
+                const value = escapeHtml(templateValues[key] || "—");
+                return ["name", "phone"].includes(key)
+                  ? `<strong>${value}</strong>`
+                  : value;
+              });
+            const brandMarkup = brandLogo
+              ? `<img src="${escapeHtml(brandLogo)}" alt="${escapeHtml(brandName)}" style="display:block;width:52px;height:52px;border-radius:14px;object-fit:cover;border:1px solid rgba(148,163,184,0.35);background:#fff;" />`
+              : "";
+            return `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;padding:28px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;color:#0f172a;line-height:1.7"><div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #e2e8f0;margin-bottom:16px;">${brandMarkup}<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;font-weight:700;">${escapeHtml(brandName)}</div></div>${bodyHtml}<div style="margin-top:18px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;"><a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;">${escapeHtml(ctaLabel)}</a></div></div>`;
+          };
+          const parseSalesList = (value: string) =>
+            value
+              .split(/[;,\n]/)
+              .map((item) => item.trim())
+              .filter(Boolean);
 
-        const chooseSalesRecipient = () => {
-          const saleList = parseSalesList(
-            config.emailAutomation.notifyEmail || config.emailAutomation.salesEmailList.join(","),
-          );
-          const recipients =
-            config.emailAutomation.salesEmailList.length > 0
-              ? config.emailAutomation.salesEmailList
-                  .map((item) => item.trim())
-                  .filter(Boolean)
-              : saleList;
-          const weights = Object.fromEntries(
-            Object.entries(config.emailAutomation.salesDistributionWeights || {}).filter(
-              ([key, val]) => Boolean(key) && Number(val) > 0,
-            ),
-          );
-          return selectSalesRecipient({
-            recipients,
-            mode: config.emailAutomation.salesDistributionMode,
-            weights,
-            leadKey: payload.idempotency_key || payload.webhook_delivery_id || payload.phone,
-            date: new Date().toISOString().slice(0, 10),
-          });
-        };
-
-        const selectedSaleRecipient = chooseSalesRecipient();
-        const directNotify = config.emailAutomation.notifyEmail.trim();
-        const saleRecipients = parseSalesList(
-          config.emailAutomation.salesEmailList.join(",") || directNotify,
-        );
-
-        // Email cảm ơn gửi tới khách (nếu khách cung cấp email)
-        if (email) {
-          emailTasks.push(
-            safeSendLeadEmail({
-              data: {
-                provider: config.emailAutomation.provider,
-                to: email,
-                from: config.emailAutomation.fromEmail,
-                subject: fill(config.emailAutomation.subject),
-                text: `${fill(config.emailAutomation.body)}\n\n${fill(config.emailAutomation.customerCtaLabel || config.emailAutomation.ctaLabel || "Nhận tư vấn ngay")}: ${resolveCtaUrl(config.emailAutomation.customerCtaUrl || config.emailAutomation.ctaUrl)}`,
-                html: htmlBody(config.emailAutomation.body, "customer"),
-                resendApiKey: config.emailAutomation.resendApiKey,
-                gmailClientId: config.emailAutomation.gmailClientId,
-                gmailClientSecret: config.emailAutomation.gmailClientSecret,
-                gmailRefreshToken: config.emailAutomation.gmailRefreshToken,
-              },
-            }),
-          );
-        }
-
-        if (selectedSaleRecipient) {
-          emailTasks.push(
-            safeSendLeadEmail({
-              data: {
-                provider: config.emailAutomation.provider,
-                to: selectedSaleRecipient,
-                from: config.emailAutomation.fromEmail,
-                subject: fill(config.emailAutomation.notifySubject),
-                text: `${fill(config.emailAutomation.notifyBody)}\n\n${fill(config.emailAutomation.salesCtaLabel || "Mở lead trong CRM")}: ${resolveCtaUrl(config.emailAutomation.salesCtaUrl || config.emailAutomation.ctaUrl)}`,
-                html: htmlBody(config.emailAutomation.notifyBody, "sales"),
-                resendApiKey: config.emailAutomation.resendApiKey,
-                gmailClientId: config.emailAutomation.gmailClientId,
-                gmailClientSecret: config.emailAutomation.gmailClientSecret,
-                gmailRefreshToken: config.emailAutomation.gmailRefreshToken,
-              },
-            }),
-          );
-        } else if (directNotify) {
-          emailTasks.push(
-            safeSendLeadEmail({
-              data: {
-                provider: config.emailAutomation.provider,
-                to: directNotify,
-                from: config.emailAutomation.fromEmail,
-                subject: fill(config.emailAutomation.notifySubject),
-                text: `${fill(config.emailAutomation.notifyBody)}\n\n${fill(config.emailAutomation.salesCtaLabel || "Mở lead trong CRM")}: ${resolveCtaUrl(config.emailAutomation.salesCtaUrl || config.emailAutomation.ctaUrl)}`,
-                html: htmlBody(config.emailAutomation.notifyBody, "sales"),
-                resendApiKey: config.emailAutomation.resendApiKey,
-                gmailClientId: config.emailAutomation.gmailClientId,
-                gmailClientSecret: config.emailAutomation.gmailClientSecret,
-                gmailRefreshToken: config.emailAutomation.gmailRefreshToken,
-              },
-            }),
-          );
-        }
-
-        if (selectedSaleRecipient && config.emailAutomation.salesSendWebhook) {
-          void dispatchLead(config, {
-            ...payload,
-            event: "sale_assignment_email",
-            lead_id: savedLead.id,
-            sales_email_to: selectedSaleRecipient,
-            sales_email_recipients: saleRecipients,
-            selected_sales_email: selectedSaleRecipient,
-            sale_assigned_to: selectedSaleRecipient,
-            sales_distribution_mode: config.emailAutomation.salesDistributionMode,
-            sales_distribution_weights: config.emailAutomation.salesDistributionWeights,
-            sales_assignment_result: {
-              selected_sales_email: selectedSaleRecipient,
-              recipients: saleRecipients,
+          const chooseSalesRecipient = () => {
+            const saleList = parseSalesList(
+              config.emailAutomation.notifyEmail ||
+                config.emailAutomation.salesEmailList.join(","),
+            );
+            const recipients =
+              config.emailAutomation.salesEmailList.length > 0
+                ? config.emailAutomation.salesEmailList
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                : saleList;
+            const weights = Object.fromEntries(
+              Object.entries(
+                config.emailAutomation.salesDistributionWeights || {},
+              ).filter(([key, val]) => Boolean(key) && Number(val) > 0),
+            );
+            return selectSalesRecipient({
+              recipients,
               mode: config.emailAutomation.salesDistributionMode,
-            },
-          });
-        }
+              weights,
+              leadKey:
+                payload.idempotency_key ||
+                payload.webhook_delivery_id ||
+                payload.phone,
+              date: new Date().toISOString().slice(0, 10),
+            });
+          };
 
-        const emailResults = await Promise.all(emailTasks);
-        const failedEmail = emailResults.find((result) => !result.sent);
-        if (failedEmail) {
-          emailDeliveryFailed = true;
-          // Chỉ log cho Admin (xem trong console / server logs). KHÔNG chặn luồng
-          // submit và KHÔNG hiện chi tiết cấu hình email cho khách hàng: lead đã
-          // được lưu và webhook đã gửi, nên với khách đây vẫn là submit thành công.
-          console.warn(
-            `[v0] Auto-email failed (reason=${failedEmail.reason || "provider_error"}):`,
-            failedEmail.detail || failedEmail,
+          const selectedSaleRecipient = chooseSalesRecipient();
+          const directNotify = config.emailAutomation.notifyEmail.trim();
+          const saleRecipients = parseSalesList(
+            config.emailAutomation.salesEmailList.join(",") || directNotify,
           );
-          // Cảnh báo cho Admin qua webhook để dễ giám sát mà không làm phiền khách.
-          void dispatchLead(config, {
-            ...payload,
-            event: "auto_email_failed",
-            email_failure_reason: failedEmail.reason || "provider_error",
-            email_failure_detail: failedEmail.detail || "",
-          });
+
+          // Email cảm ơn gửi tới khách (nếu khách cung cấp email)
+          if (email) {
+            emailTasks.push(
+              safeSendLeadEmail({
+                data: {
+                  provider: config.emailAutomation.provider,
+                  to: email,
+                  from: config.emailAutomation.fromEmail,
+                  subject: fill(config.emailAutomation.subject),
+                  text: `${fill(config.emailAutomation.body)}\n\n${fill(config.emailAutomation.customerCtaLabel || config.emailAutomation.ctaLabel || "Nhận tư vấn ngay")}: ${resolveCtaUrl(config.emailAutomation.customerCtaUrl || config.emailAutomation.ctaUrl)}`,
+                  html: htmlBody(config.emailAutomation.body, "customer"),
+                  resendApiKey: config.emailAutomation.resendApiKey,
+                  gmailClientId: config.emailAutomation.gmailClientId,
+                  gmailClientSecret: config.emailAutomation.gmailClientSecret,
+                  gmailRefreshToken: config.emailAutomation.gmailRefreshToken,
+                },
+              }),
+            );
+          }
+
+          if (selectedSaleRecipient) {
+            emailTasks.push(
+              safeSendLeadEmail({
+                data: {
+                  provider: config.emailAutomation.provider,
+                  to: selectedSaleRecipient,
+                  from: config.emailAutomation.fromEmail,
+                  subject: fill(config.emailAutomation.notifySubject),
+                  text: `${fill(config.emailAutomation.notifyBody)}\n\n${fill(config.emailAutomation.salesCtaLabel || "Mở lead trong CRM")}: ${resolveCtaUrl(config.emailAutomation.salesCtaUrl || config.emailAutomation.ctaUrl)}`,
+                  html: htmlBody(config.emailAutomation.notifyBody, "sales"),
+                  resendApiKey: config.emailAutomation.resendApiKey,
+                  gmailClientId: config.emailAutomation.gmailClientId,
+                  gmailClientSecret: config.emailAutomation.gmailClientSecret,
+                  gmailRefreshToken: config.emailAutomation.gmailRefreshToken,
+                },
+              }),
+            );
+          } else if (directNotify) {
+            emailTasks.push(
+              safeSendLeadEmail({
+                data: {
+                  provider: config.emailAutomation.provider,
+                  to: directNotify,
+                  from: config.emailAutomation.fromEmail,
+                  subject: fill(config.emailAutomation.notifySubject),
+                  text: `${fill(config.emailAutomation.notifyBody)}\n\n${fill(config.emailAutomation.salesCtaLabel || "Mở lead trong CRM")}: ${resolveCtaUrl(config.emailAutomation.salesCtaUrl || config.emailAutomation.ctaUrl)}`,
+                  html: htmlBody(config.emailAutomation.notifyBody, "sales"),
+                  resendApiKey: config.emailAutomation.resendApiKey,
+                  gmailClientId: config.emailAutomation.gmailClientId,
+                  gmailClientSecret: config.emailAutomation.gmailClientSecret,
+                  gmailRefreshToken: config.emailAutomation.gmailRefreshToken,
+                },
+              }),
+            );
+          }
+
+          if (
+            selectedSaleRecipient &&
+            config.emailAutomation.salesSendWebhook
+          ) {
+            void dispatchLead(config, {
+              ...payload,
+              event: "sale_assignment_email",
+              lead_id: savedLead.id,
+              sales_email_to: selectedSaleRecipient,
+              sales_email_recipients: saleRecipients,
+              selected_sales_email: selectedSaleRecipient,
+              sale_assigned_to: selectedSaleRecipient,
+              sales_distribution_mode:
+                config.emailAutomation.salesDistributionMode,
+              sales_distribution_weights:
+                config.emailAutomation.salesDistributionWeights,
+              sales_assignment_result: {
+                selected_sales_email: selectedSaleRecipient,
+                recipients: saleRecipients,
+                mode: config.emailAutomation.salesDistributionMode,
+              },
+            });
+          }
+
+          const emailResults = await Promise.all(emailTasks);
+          const failedEmail = emailResults.find((result) => !result.sent);
+          if (failedEmail) {
+            emailDeliveryFailed = true;
+            // Chỉ log cho Admin (xem trong console / server logs). KHÔNG chặn luồng
+            // submit và KHÔNG hiện chi tiết cấu hình email cho khách hàng: lead đã
+            // được lưu và webhook đã gửi, nên với khách đây vẫn là submit thành công.
+            console.warn(
+              `[v0] Auto-email failed (reason=${failedEmail.reason || "provider_error"}):`,
+              failedEmail.detail || failedEmail,
+            );
+            // Cảnh báo cho Admin qua webhook để dễ giám sát mà không làm phiền khách.
+            void dispatchLead(config, {
+              ...payload,
+              event: "auto_email_failed",
+              email_failure_reason: failedEmail.reason || "provider_error",
+              email_failure_detail: failedEmail.detail || "",
+            });
+          }
         }
-      }
       } catch (emailErr) {
         emailDeliveryFailed = true;
         console.warn(
