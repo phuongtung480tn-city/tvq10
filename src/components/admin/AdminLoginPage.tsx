@@ -7,26 +7,35 @@ import { useSiteConfig } from "@/lib/use-site-config";
 export function AdminLoginPage() {
   const { authed, login } = useAdmin();
   const { config, ready: configReady } = useSiteConfig();
+  const [emailInput, setEmailInput] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
   const env = import.meta.env as Record<string, string | undefined>;
   const supabaseUrl =
     env["VITE_SUPABASE_URL"]?.trim() || config.admin.supabaseUrl;
   const supabaseKey =
     env["VITE_SUPABASE_ANON_KEY"]?.trim() || config.admin.supabaseAnonKey;
-  const email =
+  const defaultEmail =
     env["VITE_SUPABASE_ADMIN_EMAIL"]?.trim() || config.admin.supabaseAdminEmail;
+  const email = emailInput.trim() || defaultEmail;
+
+  useEffect(() => {
+    setEmailInput(defaultEmail);
+  }, [defaultEmail]);
 
   useEffect(() => setError(""), [configReady]);
 
   async function handleSubmit() {
+    const loginEmail = emailInputRef.current?.value.trim() || email;
+    const loginPassword = passwordInputRef.current?.value ?? password;
     const ok = await login(
-      passwordInputRef.current?.value ?? password,
+      loginPassword,
       "",
       supabaseUrl,
       supabaseKey,
-      email,
+      loginEmail,
     );
     if (ok.ok) {
       window.location.assign("/");
@@ -74,6 +83,18 @@ export function AdminLoginPage() {
         ) : (
           <div className="space-y-3">
             <input
+              ref={emailInputRef}
+              type="email"
+              value={emailInput}
+              onChange={(event) => {
+                setEmailInput(event.target.value);
+                setError("");
+              }}
+              placeholder="Email Supabase Auth"
+              autoComplete="username"
+              className="w-full rounded-lg bg-neutral-800 px-3 py-2.5 text-sm outline-none ring-1 ring-white/10"
+            />
+            <input
               ref={passwordInputRef}
               type="password"
               value={password}
@@ -83,7 +104,6 @@ export function AdminLoginPage() {
               }}
               placeholder="Mật khẩu Supabase Auth"
               autoComplete="current-password"
-              autoFocus
               onKeyDown={(event) => {
                 if (event.key === "Enter") void handleSubmit();
               }}
