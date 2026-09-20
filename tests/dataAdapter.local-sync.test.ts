@@ -239,6 +239,21 @@ test("decrementCountdownWithServiceRole creates a countdown row when config is m
   );
 });
 
+test("saved lead should still be treated as success when downstream webhooks fail", async () => {
+  const { shouldTreatSubmitAsFailure } = await import(
+    "../src/components/LeadForm.tsx",
+  );
+
+  assert.equal(
+    shouldTreatSubmitAsFailure({ leadSaved: true, webhookDeliveryOk: false }),
+    false,
+  );
+  assert.equal(
+    shouldTreatSubmitAsFailure({ leadSaved: false, webhookDeliveryOk: false }),
+    true,
+  );
+});
+
 test("buildDailyAnalyticsSummary groups counts by day and keeps daily resets separate from lifetime totals", async () => {
   const { buildDailyAnalyticsSummary } = await import("../src/services/dataAdapter.ts");
 

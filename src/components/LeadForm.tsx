@@ -139,6 +139,16 @@ function rateLimited(maxCount: number, windowMin: number): boolean {
   return false;
 }
 
+export function shouldTreatSubmitAsFailure({
+  leadSaved,
+  webhookDeliveryOk,
+}: {
+  leadSaved: boolean;
+  webhookDeliveryOk: boolean;
+}): boolean {
+  return !leadSaved && !webhookDeliveryOk;
+}
+
 export function LeadForm({ id = "dang-ky" }: { id?: string }) {
   const { config, decrementCountdown } = useSiteConfig();
   const [status, setStatus] = useState<Status>("idle");
@@ -415,9 +425,16 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
         console.warn(
           `Lead saved, but webhook delivery was partial/failed: ${failed || "không có endpoint thành công"}`,
         );
-        toast.warning("Lead đã lưu, nhưng một webhook chưa nhận dữ liệu.", {
-          description: failed || "Kiểm tra cấu hình Form & Webhook.",
-        });
+
+        if (leadSaved) {
+          toast.warning("Lead đã lưu, nhưng một webhook chưa nhận dữ liệu.", {
+            description: failed || "Kiểm tra cấu hình Form & Webhook.",
+          });
+        } else {
+          toast.error("Gửi chưa thành công", {
+            description: failed || "Kiểm tra cấu hình Form & Webhook.",
+          });
+        }
       }
       if (
         config.admin.storageMode === "database" &&
@@ -674,9 +691,15 @@ export function LeadForm({ id = "dang-ky" }: { id?: string }) {
       // webhook đã gửi. emailDeliveryFailed chỉ dùng để log/giám sát.
       void emailDeliveryFailed;
 
-      if (webhookDeliveryFailed) {
+      if (
+        webhookDeliveryFailed &&
+        shouldTreatSubmitAsFailure({
+          leadSaved,
+          webhookDeliveryOk: !webhookDeliveryFailed,
+        })
+      ) {
         setError(
-          "Lead đã lưu và email đã xử lý, nhưng một webhook chưa nhận dữ liệu. Kiểm tra tab Leads và endpoint webhook.",
+          "Lead chưa lưu thành công. Vui lòng kiểm tra kết nối và thử lại.",
         );
       }
 
