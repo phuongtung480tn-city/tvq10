@@ -623,7 +623,7 @@ export function buildVisitorBehaviorPayload(
   assessment: LeadAssessment;
   visitorBehaviorPayload: VisitorBehaviorPayload;
 } {
-  const phoneState = getSessionPhoneState();
+  const phoneState = typeof getSessionPhoneState === "function" ? getSessionPhoneState() : { phoneHint: "", submittedPhone: "", formSubmitted: false };
   const behavior = collectBehavior(input);
   const assessment = scoreLead(behavior, cfg);
   const snapshot = getTrackingSnapshot();

@@ -49,7 +49,8 @@ export function selectSalesRecipient({
       cursor += Number(weight) || 0;
       if (pivot <= cursor) return email;
     }
-    return entries[entries.length - 1][0];
+    const lastEmail = entries.at(-1)?.[0];
+    return lastEmail ?? available[0] ?? "";
   }
 
   if (mode === "random") {

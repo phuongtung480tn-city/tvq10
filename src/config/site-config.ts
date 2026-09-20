@@ -314,8 +314,9 @@ export interface SiteConfig {
   analyticsReport: {
     enabled: boolean;
     recipientEmail: string;
-    schedule: "off" | "daily" | "weekly";
+    schedule: "off" | "2h" | "4h" | "6h" | "12h" | "daily" | "weekly";
     subject: string;
+    body: string;
     includeSourceBreakdown: boolean;
     includeLeadSummary: boolean;
   };
@@ -390,6 +391,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     recipientEmail: "",
     schedule: "off",
     subject: "[Analytics Report] {date}",
+    body: "Báo cáo ngày {date}\n\nLượt truy cập: {totalVisits}\nLượt đăng ký: {totalLeads}\nTỷ lệ CR: {conversionRate}\n\n{note}",
     includeSourceBreakdown: true,
     includeLeadSummary: true,
   },

@@ -211,6 +211,71 @@ test("decrementCountdownWithServiceRole creates a countdown row when config is m
   );
 });
 
+test("buildDailyAnalyticsSummary groups counts by day and keeps daily resets separate from lifetime totals", async () => {
+  const { buildDailyAnalyticsSummary } = await import("../src/services/dataAdapter.ts");
+
+  const analytics = {
+    visits: 42,
+    leads: 8,
+    bySource: { google: 12, direct: 30 },
+    bySourceStats: {
+      google: { visits: 12, leads: 3 },
+      direct: { visits: 30, leads: 5 },
+    },
+    byVariant: { A: { visits: 20, leads: 3 }, B: { visits: 22, leads: 5 } },
+    daily: {
+      "2025-01-10": {
+        date: "2025-01-10",
+        visits: 18,
+        leads: 4,
+        bySource: { google: 8, direct: 10 },
+        bySourceStats: {
+          google: { visits: 8, leads: 2 },
+          direct: { visits: 10, leads: 2 },
+        },
+        byVariant: { A: { visits: 12, leads: 2 }, B: { visits: 6, leads: 2 } },
+      },
+      "2025-01-11": {
+        date: "2025-01-11",
+        visits: 24,
+        leads: 4,
+        bySource: { direct: 24 },
+        bySourceStats: { direct: { visits: 24, leads: 4 } },
+        byVariant: { B: { visits: 24, leads: 4 } },
+      },
+    },
+  } as const;
+
+  const result = buildDailyAnalyticsSummary(analytics, {
+    start: "2025-01-10",
+    end: "2025-01-11",
+  });
+
+  assert.equal(result.totalVisits, 42);
+  assert.equal(result.totalLeads, 8);
+  assert.equal(result.conversionRate, "19.0%");
+  assert.deepEqual(result.dailyBreakdown.map((item) => item.date), ["2025-01-10", "2025-01-11"]);
+  assert.equal(result.dailyBreakdown[0].leads, 4);
+  assert.equal(result.dailyBreakdown[1].visits, 24);
+});
+
+test("renderAnalyticsReportTemplate replaces placeholders in subject and body", async () => {
+  const { renderAnalyticsReportTemplate } = await import("../src/services/dataAdapter.ts");
+
+  const rendered = renderAnalyticsReportTemplate(
+    "[Report] {date} | {totalVisits} visits | {totalLeads} leads",
+    {
+      date: "2025-01-11",
+      totalVisits: 24,
+      totalLeads: 4,
+      conversionRate: "16.7%",
+      note: "Daily summary",
+    },
+  );
+
+  assert.equal(rendered, "[Report] 2025-01-11 | 24 visits | 4 leads");
+});
+
 test("selectSalesRecipient follows weighted and round robin formulas", async () => {
   const { selectSalesRecipient } = await import("../src/services/webhooks.ts");
   const recipients = ["sale1@test.com", "sale2@test.com", "sale3@test.com"];

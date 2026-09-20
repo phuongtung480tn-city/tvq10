@@ -31,6 +31,8 @@ import {
   syncLeadsToSupabase,
   testSupabaseConnection,
   buildAnalyticsReportSummary,
+  getTodayAnalyticsSnapshot,
+  renderAnalyticsReportTemplate,
   exportAnalyticsReportCsv,
   exportAnalyticsReportJson,
   exportAnalyticsReportPdf,
@@ -3709,13 +3711,17 @@ function AnalyticsModal({ onClose }: ModalProps) {
   const [rangeEnd, setRangeEnd] = useState<string>(today.toISOString().slice(0, 10));
   const [reportRecipients, setReportRecipients] = useState<string>(config.analyticsReport.recipientEmail || "");
   const [reportSubject, setReportSubject] = useState<string>(config.analyticsReport.subject || "[Analytics Report] {date}");
+  const [reportBody, setReportBody] = useState<string>(config.analyticsReport.body || "Báo cáo ngày {date}\n\nLượt truy cập: {totalVisits}\nLượt đăng ký: {totalLeads}\nTỷ lệ CR: {conversionRate}\n\n{note}");
+  const [reportSchedule, setReportSchedule] = useState<string>(config.analyticsReport.schedule || "off");
   const [reportNote, setReportNote] = useState<string>("Báo cáo tổng kết hoạt động marketing trong ngày.");
   const [reportStatus, setReportStatus] = useState<string | null>(null);
 
   useEffect(() => {
     setReportRecipients(config.analyticsReport.recipientEmail || "");
     setReportSubject(config.analyticsReport.subject || "[Analytics Report] {date}");
-  }, [config.analyticsReport.recipientEmail, config.analyticsReport.subject]);
+    setReportBody(config.analyticsReport.body || "Báo cáo ngày {date}\n\nLượt truy cập: {totalVisits}\nLượt đăng ký: {totalLeads}\nTỷ lệ CR: {conversionRate}\n\n{note}");
+    setReportSchedule(config.analyticsReport.schedule || "off");
+  }, [config.analyticsReport.recipientEmail, config.analyticsReport.subject, config.analyticsReport.body, config.analyticsReport.schedule]);
 
   useEffect(() => {
     if (!configReady) return;
@@ -3772,12 +3778,28 @@ function AnalyticsModal({ onClose }: ModalProps) {
 
     setReportStatus("Đang gửi báo cáo…");
     try {
+      const formattedSubject = renderAnalyticsReportTemplate(reportSubject, {
+        date: rangeEnd,
+        totalVisits: report.totalVisits,
+        totalLeads: report.totalLeads,
+        conversionRate: report.conversionRate,
+        note: reportNote,
+      });
+      const formattedBody = renderAnalyticsReportTemplate(reportBody || "Báo cáo ngày {date}\n\nLượt truy cập: {totalVisits}\nLượt đăng ký: {totalLeads}\nTỷ lệ CR: {conversionRate}\n\n{note}", {
+        date: rangeEnd,
+        totalVisits: report.totalVisits,
+        totalLeads: report.totalLeads,
+        conversionRate: report.conversionRate,
+        note: reportNote || "Báo cáo tổng kết hoạt động marketing.",
+      });
       const response = await fetch("/api/analytics-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipients,
-          subject: reportSubject.replace("{date}", rangeEnd),
+          subject: formattedSubject,
+          body: formattedBody,
+          schedule: reportSchedule,
           note: reportNote || "Báo cáo tổng kết hoạt động marketing.",
           summary: report,
         }),
@@ -3794,6 +3816,9 @@ function AnalyticsModal({ onClose }: ModalProps) {
 
   const cr =
     a && a.visits > 0 ? ((a.leads / a.visits) * 100).toFixed(1) : "0.0";
+  const todayStats = getTodayAnalyticsSnapshot(a);
+  const todayCr =
+    todayStats.visits > 0 ? ((todayStats.leads / todayStats.visits) * 100).toFixed(1) : "0.0";
   return (
     <AdminModal
       title="Thống Kê & Analytics"
@@ -3886,6 +3911,22 @@ function AnalyticsModal({ onClose }: ModalProps) {
         />
       </div>
 
+      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/25 dark:bg-amber-500/5">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
+            Số liệu hôm nay
+          </p>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+            Reset mỗi ngày
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Stat label="Hôm nay" value={todayStats.visits.toString()} />
+          <Stat label="Lead hôm nay" value={todayStats.leads.toString()} tone="text-emerald-600" />
+          <Stat label="CR hôm nay" value={`${todayCr}%`} tone="text-red-600" />
+        </div>
+      </div>
+
       <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-white/10 dark:bg-white/5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
           Báo cáo theo khoảng thời gian
@@ -3942,6 +3983,28 @@ function AnalyticsModal({ onClose }: ModalProps) {
             value={reportSubject}
             onChange={(e) => setReportSubject(e.target.value)}
             className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-xs"
+          />
+        </label>
+        <label className="mt-2 block text-[11px] text-neutral-600">
+          Tần suất gửi tự động
+          <select
+            value={reportSchedule}
+            onChange={(e) => setReportSchedule(e.target.value)}
+            className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-xs"
+          >
+            {(["off", "2h", "4h", "6h", "12h", "daily", "weekly"] as const).map((option) => (
+              <option key={option} value={option}>
+                {option === "off" ? "Tắt" : option === "2h" ? "2 giờ/lần" : option === "4h" ? "4 giờ/lần" : option === "6h" ? "6 giờ/lần" : option === "12h" ? "12 giờ/lần" : option === "daily" ? "1 ngày/lần" : "1 tuần/lần"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="mt-2 block text-[11px] text-neutral-600">
+          Nội dung email template
+          <textarea
+            value={reportBody}
+            onChange={(e) => setReportBody(e.target.value)}
+            className="mt-1 min-h-[110px] w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-xs"
           />
         </label>
         <label className="mt-2 block text-[11px] text-neutral-600">

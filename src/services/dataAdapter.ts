@@ -1238,6 +1238,87 @@ export function exportLeadsCsv(leads: LeadRecord[]): void {
   URL.revokeObjectURL(url);
 }
 
+export function renderAnalyticsReportTemplate(
+  template: string,
+  values: Record<string, string | number | undefined>,
+): string {
+  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    const value = values[key];
+    return value === undefined || value === null ? match : String(value);
+  });
+}
+
+export function getTodayAnalyticsSnapshot(
+  analytics: AnalyticsState | null | undefined,
+): DailyAnalyticsSnapshot {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const today = analytics?.daily?.[todayKey] || {
+    date: todayKey,
+    visits: 0,
+    leads: 0,
+    bySource: {},
+    bySourceStats: {},
+    byVariant: {},
+  };
+  return {
+    date: todayKey,
+    visits: today.visits || 0,
+    leads: today.leads || 0,
+    bySource: today.bySource || {},
+    bySourceStats: today.bySourceStats || {},
+    byVariant: today.byVariant || {},
+  };
+}
+
+export function buildDailyAnalyticsSummary(
+  analytics: AnalyticsState | null | undefined,
+  range: { start: string; end: string },
+) {
+  const normalizedStart = range.start || new Date().toISOString().slice(0, 10);
+  const normalizedEnd = range.end || normalizedStart;
+  const dailyEntries = Object.values(analytics?.daily || {})
+    .filter((entry) => {
+      const date = (entry?.date || "").slice(0, 10);
+      return date >= normalizedStart && date <= normalizedEnd;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const totalVisits = dailyEntries.reduce((sum, entry) => sum + (entry.visits || 0), 0) || analytics?.visits || 0;
+  const totalLeads = dailyEntries.reduce((sum, entry) => sum + (entry.leads || 0), 0) || analytics?.leads || 0;
+  const conversionRate = totalVisits > 0 ? `${((totalLeads / totalVisits) * 100).toFixed(1)}%` : "0.0%";
+
+  const fallbackEntries = dailyEntries.length
+    ? dailyEntries
+    : normalizedStart === normalizedEnd
+      ? [
+          {
+            date: normalizedStart,
+            visits: analytics?.visits || 0,
+            leads: analytics?.leads || 0,
+            bySource: analytics?.bySource || {},
+            bySourceStats: analytics?.bySourceStats || {},
+            byVariant: analytics?.byVariant || {},
+          },
+        ]
+      : [];
+
+  return {
+    range: { start: normalizedStart, end: normalizedEnd },
+    totalVisits,
+    totalLeads,
+    conversionRate,
+    dailyBreakdown: fallbackEntries.map((entry) => ({
+      date: entry.date || normalizedStart,
+      visits: entry.visits || 0,
+      leads: entry.leads || 0,
+      conversionRate: entry.visits ? `${((entry.leads / entry.visits) * 100).toFixed(1)}%` : "0.0%",
+      bySource: entry.bySource || {},
+      bySourceStats: entry.bySourceStats || {},
+      byVariant: entry.byVariant || {},
+    })),
+  };
+}
+
 export function buildAnalyticsReportSummary(
   leads: LeadRecord[],
   analytics: AnalyticsState | null,
@@ -1249,14 +1330,18 @@ export function buildAnalyticsReportSummary(
     const at = (lead.at || "").slice(0, 10);
     return at >= normalizedStart && at <= normalizedEnd;
   });
-  const totalLeads = filtered.length;
-  const totalVisits = analytics?.visits ?? totalLeads;
-  const conversionRate = totalVisits > 0 ? ((totalLeads / totalVisits) * 100).toFixed(1) : "0.0";
+  const dailySummary = buildDailyAnalyticsSummary(analytics, {
+    start: normalizedStart,
+    end: normalizedEnd,
+  });
+  const totalLeads = filtered.length || dailySummary.totalLeads;
+  const totalVisits = dailySummary.totalVisits || filtered.length || analytics?.visits || 0;
+  const conversionRate = totalVisits > 0 ? `${((totalLeads / totalVisits) * 100).toFixed(1)}%` : "0.0%";
   return {
     range: { start: normalizedStart, end: normalizedEnd },
     totalVisits,
     totalLeads,
-    conversionRate: `${conversionRate}%`,
+    conversionRate,
     sourceBreakdown: Object.entries(analytics?.bySourceStats || {}).map(([source, stats]) => ({
       source,
       visits: stats.visits,
@@ -1264,6 +1349,7 @@ export function buildAnalyticsReportSummary(
       conversionRate: stats.visits ? `${((stats.leads / stats.visits) * 100).toFixed(1)}%` : "0.0%",
     })),
     leads,
+    dailyBreakdown: dailySummary.dailyBreakdown,
   };
 }
 
@@ -1338,12 +1424,22 @@ export function exportAnalyticsReportPdf(
 
 /* ------------------------------- ANALYTICS -------------------------------- */
 
+export interface DailyAnalyticsSnapshot {
+  date: string;
+  visits: number;
+  leads: number;
+  bySource: Record<string, number>;
+  bySourceStats: Record<string, { visits: number; leads: number }>;
+  byVariant: Record<string, { visits: number; leads: number }>;
+}
+
 export interface AnalyticsState {
   visits: number;
   leads: number;
   bySource: Record<string, number>;
   bySourceStats: Record<string, { visits: number; leads: number }>;
   byVariant: Record<string, { visits: number; leads: number }>;
+  daily?: Record<string, DailyAnalyticsSnapshot>;
 }
 
 export interface CloudAnalyticsResult {
@@ -1408,7 +1504,53 @@ function emptyAnalytics(): AnalyticsState {
     bySource: {},
     bySourceStats: {},
     byVariant: {},
+    daily: {},
   };
+}
+
+function ensureDailyAnalyticsBucket(
+  state: AnalyticsState,
+  dateKey: string,
+): DailyAnalyticsSnapshot {
+  state.daily = state.daily || {};
+  if (!state.daily[dateKey]) {
+    state.daily[dateKey] = {
+      date: dateKey,
+      visits: 0,
+      leads: 0,
+      bySource: {},
+      bySourceStats: {},
+      byVariant: {},
+    };
+  }
+  return state.daily[dateKey];
+}
+
+function incrementDayBucket(
+  state: AnalyticsState,
+  dateKey: string,
+  kind: "visit" | "lead",
+  source: string,
+  variant?: string,
+) {
+  const bucket = ensureDailyAnalyticsBucket(state, dateKey);
+  if (kind === "visit") bucket.visits += 1;
+  if (kind === "lead") bucket.leads += 1;
+  bucket.bySource[source] = (bucket.bySource[source] || 0) + (kind === "visit" ? 1 : 0);
+  bucket.bySourceStats[source] = bucket.bySourceStats[source] || {
+    visits: 0,
+    leads: 0,
+  };
+  if (kind === "visit") bucket.bySourceStats[source].visits += 1;
+  if (kind === "lead") bucket.bySourceStats[source].leads += 1;
+  if (variant) {
+    bucket.byVariant[variant] = bucket.byVariant[variant] || {
+      visits: 0,
+      leads: 0,
+    };
+    if (kind === "visit") bucket.byVariant[variant].visits += 1;
+    if (kind === "lead") bucket.byVariant[variant].leads += 1;
+  }
 }
 
 function cleanSource(source: string): string {
@@ -1458,6 +1600,41 @@ function normalizeAnalytics(
         : 0,
     };
   }
+  const normalizedDaily: Record<string, DailyAnalyticsSnapshot> = {};
+  for (const [dateKey, item] of Object.entries(value?.daily || {})) {
+    if (!item || typeof item !== "object") continue;
+    const date = String((item as { date?: string }).date || dateKey || "").slice(0, 10);
+    normalizedDaily[date] = {
+      date,
+      visits: Number.isFinite((item as { visits?: number }).visits)
+        ? Math.max(0, Number((item as { visits?: number }).visits))
+        : 0,
+      leads: Number.isFinite((item as { leads?: number }).leads)
+        ? Math.max(0, Number((item as { leads?: number }).leads))
+        : 0,
+      bySource: {},
+      bySourceStats: {},
+      byVariant: {},
+    };
+    for (const [source, count] of Object.entries((item as { bySource?: Record<string, number> }).bySource || {})) {
+      if (Number.isFinite(count)) normalizedDaily[date].bySource[cleanSource(source)] = Math.max(0, Number(count));
+    }
+    for (const [source, stats] of Object.entries((item as { bySourceStats?: Record<string, { visits?: number; leads?: number }> }).bySourceStats || {})) {
+      if (!stats) continue;
+      normalizedDaily[date].bySourceStats[cleanSource(source)] = {
+        visits: Number.isFinite(stats.visits) ? Math.max(0, Number(stats.visits)) : 0,
+        leads: Number.isFinite(stats.leads) ? Math.max(0, Number(stats.leads)) : 0,
+      };
+    }
+    for (const [variant, stats] of Object.entries((item as { byVariant?: Record<string, { visits?: number; leads?: number }> }).byVariant || {})) {
+      if (!stats) continue;
+      normalizedDaily[date].byVariant[variant] = {
+        visits: Number.isFinite(stats.visits) ? Math.max(0, Number(stats.visits)) : 0,
+        leads: Number.isFinite(stats.leads) ? Math.max(0, Number(stats.leads)) : 0,
+      };
+    }
+  }
+  result.daily = normalizedDaily;
   return result;
 }
 
@@ -1641,6 +1818,7 @@ export function trackVisit(source: string, variant?: string): void {
     a.byVariant[variant] = a.byVariant[variant] || { visits: 0, leads: 0 };
     a.byVariant[variant].visits += 1;
   }
+  incrementDayBucket(a, new Date().toISOString().slice(0, 10), "visit", normalizedSource, variant);
   saveAnalytics(a);
 }
 
@@ -1658,6 +1836,7 @@ export function trackConversion(source: string, variant?: string): void {
     a.byVariant[variant] = a.byVariant[variant] || { visits: 0, leads: 0 };
     a.byVariant[variant].leads += 1;
   }
+  incrementDayBucket(a, new Date().toISOString().slice(0, 10), "lead", normalizedSource, variant);
   saveAnalytics(a);
 }
 
